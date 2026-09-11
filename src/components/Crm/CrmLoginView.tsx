@@ -172,7 +172,7 @@ export const CrmLoginView: React.FC<CrmLoginViewProps> = ({
                   type="text"
                   value={username}
                   onChange={(e) => setUsername(e.target.value)}
-                  placeholder="es. admin oppure operatore.cb"
+                  placeholder=""
                   autoFocus
                   required
                   className="w-full pl-9 pr-3 py-2.5 bg-slate-950/90 border border-slate-700/80 rounded-xl text-white placeholder-slate-500 text-sm focus:outline-none focus:border-sky-500 focus:ring-1 focus:ring-sky-500 transition-colors"
