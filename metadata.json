@@ -1,0 +1,10 @@
+{
+  "name": "Sportello Imprese - CRM e Portale Prenotazioni",
+  "description": "Portale web e CRM per la prenotazione di appuntamenti presso gli sportelli territoriali e la scoperta imprenditoriale (EDP) - Sviluppo Italia Molise.",
+  "requestFramePermissions": [
+    "geolocation"
+  ],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
