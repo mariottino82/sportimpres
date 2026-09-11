@@ -1,4 +1,6 @@
 import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
+import QRCode from 'qrcode';
 import { WebTvVideo, CrmRole } from '../../types';
 import { MOLISE_COMUNI } from '../../data/moliseComuni';
 import { Logo, InstitutionalLogosStrip } from '../Logo';
@@ -26,6 +28,88 @@ interface QrCodeWebTvViewProps {
   initialSubTab?: 'qrcode' | 'webtv' | 'vetrina';
   onNavigateToPublicPortal?: () => void;
 }
+
+interface CartelloPosterProps {
+  selectedComune: string;
+  qrType: string;
+  qrCodeUrl: string;
+  isPrint?: boolean;
+}
+
+const CartelloPosterA4: React.FC<CartelloPosterProps> = ({
+  selectedComune,
+  qrType,
+  qrCodeUrl,
+  isPrint = false
+}) => {
+  return (
+    <div
+      className={
+        isPrint
+          ? "w-full h-full flex flex-col items-center justify-between text-center bg-white text-slate-900"
+          : "bg-white p-8 rounded-2xl border-2 border-slate-200 shadow-md flex flex-col items-center text-center space-y-4 w-full"
+      }
+    >
+      {/* 1. Striscia Ufficiale Loghi Istituzionali */}
+      <div className={`w-full ${isPrint ? 'pb-4 border-b border-slate-200' : 'pb-3 border-b border-slate-100'} flex justify-center`}>
+        <InstitutionalLogosStrip size={isPrint ? 'sm' : 'xs'} />
+      </div>
+
+      {/* 2. Logo Ufficiale Sportello Imprese */}
+      <div className={isPrint ? 'py-3' : 'py-2'}>
+        <Logo size={isPrint ? 'xl' : 'lg'} showSubtitle />
+      </div>
+
+      {/* 3. Indicazione Territoriale */}
+      <p className={`${isPrint ? 'text-base font-medium max-w-md' : 'text-xs max-w-xs'} text-slate-700 leading-relaxed`}>
+        {qrType === 'webtv' ? (
+          <>Punto informativo e canale Web TV <strong>La Bottega delle Opportunità</strong></>
+        ) : qrType === 'locandina' ? (
+          <>Punto informativo e di orientamento per imprese e aspiranti imprenditori del territorio di <strong>{selectedComune}</strong></>
+        ) : (
+          <>Punto informativo e di orientamento per imprese e aspiranti imprenditori del Comune di <strong>{selectedComune}</strong></>
+        )}
+      </p>
+
+      {/* 4. Quadro QR Code */}
+      <div className={`${isPrint ? 'p-5 shadow-sm border-2 border-slate-300 rounded-3xl' : 'p-4 shadow-md border border-slate-200 rounded-2xl'} bg-white`}>
+        {qrCodeUrl ? (
+          <img
+            src={qrCodeUrl}
+            alt={`QR Code Sportello Imprese - ${selectedComune}`}
+            className={isPrint ? "w-64 h-64 mx-auto object-contain" : "w-48 h-48 mx-auto object-contain"}
+          />
+        ) : (
+          <div className="w-48 h-48 bg-slate-100 flex items-center justify-center text-xs text-slate-400">
+            Generazione in corso...
+          </div>
+        )}
+      </div>
+
+      {/* 5. Invito all'Azione */}
+      <div className="space-y-1">
+        <span className={`font-black text-slate-950 uppercase tracking-wide block ${isPrint ? 'text-lg' : 'text-sm'}`}>
+          INQUADRA CON LO SMARTPHONE
+        </span>
+        <span className={`text-slate-600 block ${isPrint ? 'text-sm' : 'text-[11px]'}`}>
+          Prenota un colloquio gratuito con gli esperti di Sviluppo Italia Molise
+        </span>
+      </div>
+
+      {/* 6. Footer Ufficiale Programma e Finanziamento */}
+      <div className={`w-full flex flex-col items-center gap-1 ${isPrint ? 'pt-4 border-t border-slate-200' : 'pt-2'}`}>
+        <span className={`font-bold text-slate-400 uppercase tracking-widest ${isPrint ? 'text-xs' : 'text-[9px]'}`}>
+          PR MOLISE FESR FSE+ 2021-2027
+        </span>
+        {isPrint && (
+          <span className="text-[10px] text-slate-400">
+            Azione 1.4.2 • CUP J19B25000190009
+          </span>
+        )}
+      </div>
+    </div>
+  );
+};
 
 export const QrCodeWebTvView: React.FC<QrCodeWebTvViewProps> = ({
   role,
@@ -94,7 +178,7 @@ export const QrCodeWebTvView: React.FC<QrCodeWebTvViewProps> = ({
     fetchVideos();
   }, []);
 
-  // Update QR Code URL when comune or type changes
+  // Update QR Code URL when comune or type changes (using local high-res generator)
   useEffect(() => {
     const origin = window.location.origin;
     let target = `${origin}/?source=qrcode&comune=${encodeURIComponent(selectedComune)}`;
@@ -103,9 +187,71 @@ export const QrCodeWebTvView: React.FC<QrCodeWebTvViewProps> = ({
     } else if (qrType === 'locandina') {
       target = `${origin}/?source=locandina_ufficiale&comune=${encodeURIComponent(selectedComune)}`;
     }
-    const qrApi = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(target)}`;
-    setQrCodeUrl(qrApi);
+    
+    QRCode.toDataURL(target, {
+      width: 600,
+      margin: 1,
+      color: {
+        dark: '#0f172a',
+        light: '#ffffff'
+      }
+    })
+      .then((url) => setQrCodeUrl(url))
+      .catch((err) => {
+        console.error('Error generating QR code:', err);
+        const qrApi = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(target)}`;
+        setQrCodeUrl(qrApi);
+      });
   }, [selectedComune, qrType]);
+
+  // Ascolta eventi di stampa del browser per isolare il cartello
+  useEffect(() => {
+    if (activeSubTab !== 'qrcode') return;
+
+    const handleBeforePrint = () => {
+      document.body.classList.add('printing-cartello-a4');
+    };
+    const handleAfterPrint = () => {
+      document.body.classList.remove('printing-cartello-a4');
+    };
+
+    window.addEventListener('beforeprint', handleBeforePrint);
+    window.addEventListener('afterprint', handleAfterPrint);
+
+    return () => {
+      window.removeEventListener('beforeprint', handleBeforePrint);
+      window.removeEventListener('afterprint', handleAfterPrint);
+      document.body.classList.remove('printing-cartello-a4');
+    };
+  }, [activeSubTab]);
+
+  const handlePrintCartello = () => {
+    document.body.classList.add('printing-cartello-a4');
+
+    const cleanup = () => {
+      document.body.classList.remove('printing-cartello-a4');
+      window.removeEventListener('afterprint', cleanup);
+    };
+
+    window.addEventListener('afterprint', cleanup, { once: true });
+    setTimeout(cleanup, 2500);
+
+    requestAnimationFrame(() => {
+      setTimeout(() => {
+        window.print();
+      }, 50);
+    });
+  };
+
+  const handleDownloadQr = () => {
+    if (!qrCodeUrl) return;
+    const link = document.createElement('a');
+    link.href = qrCodeUrl;
+    link.download = `QRCode_Sportello_Imprese_${selectedComune.replace(/\s+/g, '_')}.png`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
 
   const handleCreateVideo = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -240,57 +386,34 @@ export const QrCodeWebTvView: React.FC<QrCodeWebTvViewProps> = ({
               </div>
             )}
 
-            <div className="pt-2 border-t border-slate-100 flex items-center gap-3">
+            <div className="pt-3 border-t border-slate-100 flex flex-wrap items-center gap-3">
               <button
-                onClick={() => window.print()}
-                className="px-4 py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs flex items-center gap-2"
+                type="button"
+                onClick={handlePrintCartello}
+                className="px-4 py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs flex items-center gap-2 shadow-xs transition-colors cursor-pointer"
               >
                 <Printer className="w-4 h-4 text-emerald-400" />
                 <span>Stampa Cartello Ufficiale A4</span>
               </button>
+
+              <button
+                type="button"
+                onClick={handleDownloadQr}
+                className="px-3.5 py-2.5 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-700 font-bold text-xs flex items-center gap-2 transition-colors cursor-pointer"
+              >
+                <Download className="w-4 h-4 text-sky-600" />
+                <span>Scarica QR Code (PNG)</span>
+              </button>
             </div>
           </div>
 
-          {/* Printable Preview Poster */}
-          <div className="lg:col-span-6 bg-white p-8 rounded-2xl border-2 border-slate-200 shadow-md flex flex-col items-center text-center space-y-4 print:w-full print:border-none">
-            {/* Striscia Ufficiale Loghi Istituzionali */}
-            <div className="w-full pb-3 border-b border-slate-100 flex justify-center">
-              <InstitutionalLogosStrip size="xs" />
-            </div>
-
-            {/* Logo Ufficiale Sportello Imprese */}
-            <div className="py-2">
-              <Logo size="lg" showSubtitle />
-            </div>
-
-            <p className="text-xs text-slate-600 max-w-xs">
-              Punto informativo e di orientamento per imprese e aspiranti imprenditori del Comune di <strong>{selectedComune}</strong>
-            </p>
-
-            <div className="p-4 bg-white rounded-2xl shadow-md border border-slate-200">
-              {qrCodeUrl ? (
-                <img
-                  src={qrCodeUrl}
-                  alt="QR Code Sportello Imprese"
-                  className="w-48 h-48 mx-auto"
-                />
-              ) : (
-                <div className="w-48 h-48 bg-slate-100 flex items-center justify-center">Generazione...</div>
-              )}
-            </div>
-
-            <div className="space-y-1">
-              <span className="font-extrabold text-sm text-slate-900 block">
-                INQUADRA CON LO SMARTPHONE
-              </span>
-              <span className="text-[11px] text-slate-500 block">
-                Prenota un colloquio gratuito con gli esperti di Sviluppo Italia Molise
-              </span>
-            </div>
-
-            <div className="text-[9px] text-slate-400 uppercase tracking-widest pt-2">
-              PR MOLISE FESR FSE+ 2021-2027
-            </div>
+          {/* Printable Preview Poster (On Screen) */}
+          <div className="lg:col-span-6 flex flex-col items-center">
+            <CartelloPosterA4
+              selectedComune={selectedComune}
+              qrType={qrType}
+              qrCodeUrl={qrCodeUrl}
+            />
           </div>
 
         </div>
@@ -523,6 +646,19 @@ export const QrCodeWebTvView: React.FC<QrCodeWebTvViewProps> = ({
           role={role}
           onNavigateToPublicPortal={onNavigateToPublicPortal}
         />
+      )}
+
+      {/* Portal dedicato per la stampa esclusiva del Cartello Ufficiale A4 */}
+      {activeSubTab === 'qrcode' && typeof document !== 'undefined' && createPortal(
+        <div id="cartello-a4-print-target">
+          <CartelloPosterA4
+            selectedComune={selectedComune}
+            qrType={qrType}
+            qrCodeUrl={qrCodeUrl}
+            isPrint
+          />
+        </div>,
+        document.body
       )}
 
     </div>

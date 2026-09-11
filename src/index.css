@@ -12,3 +12,53 @@
     font-feature-settings: "cv02", "cv03", "cv04", "cv11";
   }
 }
+
+/* =========================================================================
+   STAMPA CARTELLO UFFICIALE A4
+   ========================================================================= */
+#cartello-a4-print-target {
+  display: none;
+}
+
+@media print {
+  @page {
+    size: A4 portrait;
+    margin: 8mm 10mm;
+  }
+
+  body.printing-cartello-a4 {
+    background-color: #ffffff !important;
+    background: #ffffff !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  /* Nasconde completamente tutti gli elementi del body (incluso #root con CRM, navbar e form) */
+  body.printing-cartello-a4 > *:not(#cartello-a4-print-target) {
+    display: none !important;
+  }
+
+  /* Mostra esclusivamente il cartello ufficiale A4 centrato e impaginato */
+  body.printing-cartello-a4 #cartello-a4-print-target {
+    display: flex !important;
+    visibility: visible !important;
+    flex-direction: column !important;
+    align-items: center !important;
+    justify-content: space-between !important;
+    width: 100% !important;
+    max-width: 185mm !important;
+    height: 265mm !important;
+    max-height: 270mm !important;
+    margin: 0 auto !important;
+    padding: 6mm 4mm !important;
+    box-sizing: border-box !important;
+    background: #ffffff !important;
+    border: none !important;
+    box-shadow: none !important;
+    page-break-after: avoid !important;
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+  }
+}
