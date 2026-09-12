@@ -4,6 +4,7 @@ import crypto from 'crypto';
 import { createServer as createViteServer } from 'vite';
 import { getDb, queryAll, queryOne, run } from './server/db.js';
 import { matchBandiForProfile } from './server/gemini.js';
+import { sendAppointmentConfirmationEmail } from './server/emailService.js';
 
 const app = express();
 const PORT = 3000;
@@ -323,7 +324,7 @@ app.post('/api/prenotazioni/lock-slot', (req, res) => {
 // PUBLIC API: CREATE APPOINTMENT & PROFILE
 // ----------------------------------------------------
 
-app.post('/api/prenotazioni', (req, res) => {
+app.post('/api/prenotazioni', async (req, res) => {
   try {
     const {
       tipo, // 'IMPRESA' | 'ASPIRANTE'
@@ -465,6 +466,46 @@ app.post('/api/prenotazioni', (req, res) => {
 
     const sportelloInfo = queryOne('SELECT * FROM sportelli WHERE id = ?', [sportelloId]);
 
+    // 5. Invia email di conferma all'indirizzo email inserito durante la procedura
+    let emailStatus = { sent: false, simulated: false, error: '' };
+    if (email) {
+      const recipientName = tipo === 'IMPRESA'
+        ? `${anagrafica.nomeReferente || ''} ${anagrafica.cognomeReferente || ''}`.trim() || anagrafica.denominazione || 'Gentile Impresa'
+        : `${anagrafica.nome || ''} ${anagrafica.cognome || ''}`.trim() || 'Gentile Utente';
+
+      const hostHeader = req.get('host');
+      const protocol = req.protocol === 'https' || req.get('x-forwarded-proto') === 'https' ? 'https' : 'http';
+      const portalUrl = hostHeader ? `${protocol}://${hostHeader}` : (process.env.APP_URL || 'http://31.70.141.184');
+
+      try {
+        const mailResult = await sendAppointmentConfirmationEmail({
+          to: email,
+          recipientName,
+          codice,
+          datetime,
+          modalita,
+          videocallLink,
+          sportelloNome: sportelloInfo?.nome || 'Sportello Imprese Molise',
+          sportelloIndirizzo: sportelloInfo?.indirizzo || '',
+          sportelloComune: sportelloInfo?.comune || '',
+          sportelloTelefono: sportelloInfo?.telefono || '0874 011011',
+          sportelloEmail: sportelloInfo?.email || 'sportelloimprese@sviluppoitaliamolise.it',
+          categoriaBisogno: motivo.categoriaBisogno || 'Bandi e finanziamenti',
+          motivoTesto: motivo.testoLibero || '',
+          tokenModifica,
+          portalUrl
+        });
+        emailStatus = {
+          sent: mailResult.success,
+          simulated: Boolean(mailResult.simulated),
+          error: mailResult.error || ''
+        };
+      } catch (mailErr: any) {
+        console.error('[EMAIL ERROR] Impossibile inviare email:', mailErr);
+        emailStatus = { sent: false, simulated: false, error: mailErr.message };
+      }
+    }
+
     res.json({
       success: true,
       codice,
@@ -474,7 +515,9 @@ app.post('/api/prenotazioni', (req, res) => {
       modalita,
       videocallLink,
       sportello: sportelloInfo,
-      emailSent: true,
+      emailSent: emailStatus.sent,
+      emailStatus,
+      emailRecipient: email,
       messaggio: 'Prenotazione confermata con successo'
     });
   } catch (err: any) {
@@ -538,12 +581,12 @@ app.post('/api/prenotazioni/:tokenOrCode/annulla', (req, res) => {
 });
 
 // Reschedule appointment
-app.post('/api/prenotazioni/:tokenOrCode/modifica', (req, res) => {
+app.post('/api/prenotazioni/:tokenOrCode/modifica', async (req, res) => {
   try {
     const { tokenOrCode } = req.params;
     const { sportelloId, datetime, modalita } = req.body;
 
-    const appt = queryOne('SELECT id, codice FROM appuntamenti WHERE token_modifica = ? OR codice = ?', [tokenOrCode, tokenOrCode]);
+    const appt = queryOne('SELECT id, codice, utente_id FROM appuntamenti WHERE token_modifica = ? OR codice = ?', [tokenOrCode, tokenOrCode]);
     if (!appt) return res.status(404).json({ error: 'Prenotazione non trovata' });
 
     const videocallLink = modalita === 'VIDEOCALL' ? `https://meet.jit.si/SportelloImpreseMolise-${appt.codice}` : '';
@@ -554,7 +597,110 @@ app.post('/api/prenotazioni/:tokenOrCode/modifica', (req, res) => {
       WHERE id = ?
     `, [sportelloId, datetime, modalita, videocallLink, appt.id]);
 
+    // Send updated confirmation email if user has email
+    try {
+      const u = queryOne('SELECT email, tipo FROM utenti WHERE id = ?', [appt.utente_id]);
+      const s = queryOne('SELECT * FROM sportelli WHERE id = ?', [sportelloId]);
+      if (u?.email) {
+        let recipientName = 'Gentile Utente';
+        if (u.tipo === 'IMPRESA') {
+          const prof = queryOne('SELECT denominazione, nome_referente, cognome_referente FROM profili_impresa WHERE utente_id = ?', [appt.utente_id]);
+          recipientName = `${prof?.nome_referente || ''} ${prof?.cognome_referente || ''}`.trim() || prof?.denominazione || 'Gentile Impresa';
+        } else {
+          const prof = queryOne('SELECT nome, cognome FROM profili_aspirante WHERE utente_id = ?', [appt.utente_id]);
+          recipientName = `${prof?.nome || ''} ${prof?.cognome || ''}`.trim() || 'Gentile Utente';
+        }
+
+        const hostHeader = req.get('host');
+        const protocol = req.protocol === 'https' || req.get('x-forwarded-proto') === 'https' ? 'https' : 'http';
+        const portalUrl = hostHeader ? `${protocol}://${hostHeader}` : (process.env.APP_URL || 'http://31.70.141.184');
+
+        await sendAppointmentConfirmationEmail({
+          to: u.email,
+          recipientName,
+          codice: appt.codice,
+          datetime,
+          modalita,
+          videocallLink,
+          sportelloNome: s?.nome || 'Sportello Imprese Molise',
+          sportelloIndirizzo: s?.indirizzo || '',
+          sportelloComune: s?.comune || '',
+          sportelloTelefono: s?.telefono || '0874 011011',
+          sportelloEmail: s?.email || 'sportelloimprese@sviluppoitaliamolise.it',
+          categoriaBisogno: 'Modifica Orario/Sede Appuntamento',
+          tokenModifica: tokenOrCode,
+          portalUrl
+        });
+      }
+    } catch (mErr) {
+      console.warn('[EMAIL RESCHEDULE WARN]:', mErr);
+    }
+
     res.json({ success: true, messaggio: 'Prenotazione modificata con successo' });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Re-send confirmation email
+app.post('/api/prenotazioni/:tokenOrCode/rinvia-email', async (req, res) => {
+  try {
+    const { tokenOrCode } = req.params;
+    const targetEmail = req.body.email;
+
+    const appt = queryOne(`
+      SELECT a.*, s.nome as sportello_nome, s.comune as sportello_comune, s.indirizzo as sportello_indirizzo, s.telefono as sportello_telefono, s.email as sportello_email,
+             u.email as utente_email, u.telefono as utente_telefono, u.tipo as utente_tipo,
+             pi.denominazione as impresa_denominazione, pi.nome_referente as impresa_nome_ref, pi.cognome_referente as impresa_cognome_ref,
+             pa.nome as aspirante_nome, pa.cognome as aspirante_cognome
+      FROM appuntamenti a
+      JOIN sportelli s ON a.sportello_id = s.id
+      JOIN utenti u ON a.utente_id = u.id
+      LEFT JOIN profili_impresa pi ON u.id = pi.utente_id
+      LEFT JOIN profili_aspirante pa ON u.id = pa.utente_id
+      WHERE a.token_modifica = ? OR a.codice = ?
+    `, [tokenOrCode, tokenOrCode]);
+
+    if (!appt) return res.status(404).json({ error: 'Prenotazione non trovata' });
+
+    const destEmail = (targetEmail || appt.utente_email || '').trim().toLowerCase();
+    if (!destEmail) {
+      return res.status(400).json({ error: 'Nessun indirizzo email specificato per l\'invio' });
+    }
+
+    const recipientName = appt.utente_tipo === 'IMPRESA'
+      ? `${appt.impresa_nome_ref || ''} ${appt.impresa_cognome_ref || ''}`.trim() || appt.impresa_denominazione || 'Gentile Impresa'
+      : `${appt.aspirante_nome || ''} ${appt.aspirante_cognome || ''}`.trim() || 'Gentile Utente';
+
+    const hostHeader = req.get('host');
+    const protocol = req.protocol === 'https' || req.get('x-forwarded-proto') === 'https' ? 'https' : 'http';
+    const portalUrl = hostHeader ? `${protocol}://${hostHeader}` : (process.env.APP_URL || 'http://31.70.141.184');
+
+    const mailResult = await sendAppointmentConfirmationEmail({
+      to: destEmail,
+      recipientName,
+      codice: appt.codice,
+      datetime: appt.data_ora,
+      modalita: appt.modalita,
+      videocallLink: appt.videocall_link,
+      sportelloNome: appt.sportello_nome,
+      sportelloIndirizzo: appt.sportello_indirizzo,
+      sportelloComune: appt.sportello_comune,
+      sportelloTelefono: appt.sportello_telefono,
+      sportelloEmail: appt.sportello_email,
+      categoriaBisogno: appt.categoria_bisogno || 'Bandi e finanziamenti',
+      motivoTesto: appt.motivo_testo || '',
+      tokenModifica: appt.token_modifica,
+      portalUrl
+    });
+
+    res.json({
+      success: mailResult.success,
+      emailSent: mailResult.success,
+      destEmail,
+      simulated: mailResult.simulated,
+      messaggio: mailResult.success ? `Email inviata con successo a ${destEmail}` : `Errore durante l'invio: ${mailResult.error}`
+    });
   } catch (err: any) {
     res.status(500).json({ error: err.message });
   }
@@ -842,9 +988,9 @@ app.delete('/api/crm/appuntamenti/:id', (req, res) => {
 });
 
 // Manual appointment creation by back-office operator / contact center
-app.post('/api/crm/appuntamenti', (req, res) => {
+app.post('/api/crm/appuntamenti', async (req, res) => {
   try {
-    const { utenteId, sportelloId, dataOra, modalita, motivo, categoria, note } = req.body;
+    const { utenteId, sportelloId, dataOra, modalita, motivo, categoria, note, inviaEmail = true } = req.body;
     if (!utenteId || !sportelloId || !dataOra) {
       return res.status(400).json({ error: 'utenteId, sportelloId e dataOra sono obbligatori' });
     }
@@ -862,7 +1008,114 @@ app.post('/api/crm/appuntamenti', (req, res) => {
       VALUES (?, ?, ?, ?, 30, ?, ?, 'CONFERMATO', ?, ?, ?, ?, ?)
     `, [codice, utenteId, sportelloId, dataOra, modalita || 'PRESENZA', videocallLink, motivo || 'Prenotazione da Contact Center', categoria || 'Bandi e finanziamenti', token, nowStr, note || '']);
 
-    res.json({ success: true, id: ins.lastInsertRowid, codice });
+    let emailSent = false;
+    if (inviaEmail) {
+      try {
+        const u = queryOne('SELECT email, tipo FROM utenti WHERE id = ?', [utenteId]);
+        const s = queryOne('SELECT * FROM sportelli WHERE id = ?', [sportelloId]);
+        if (u?.email) {
+          let recipientName = 'Gentile Utente';
+          if (u.tipo === 'IMPRESA') {
+            const prof = queryOne('SELECT denominazione, nome_referente, cognome_referente FROM profili_impresa WHERE utente_id = ?', [utenteId]);
+            recipientName = `${prof?.nome_referente || ''} ${prof?.cognome_referente || ''}`.trim() || prof?.denominazione || 'Gentile Impresa';
+          } else {
+            const prof = queryOne('SELECT nome, cognome FROM profili_aspirante WHERE utente_id = ?', [utenteId]);
+            recipientName = `${prof?.nome || ''} ${prof?.cognome || ''}`.trim() || 'Gentile Utente';
+          }
+
+          const hostHeader = req.get('host');
+          const protocol = req.protocol === 'https' || req.get('x-forwarded-proto') === 'https' ? 'https' : 'http';
+          const portalUrl = hostHeader ? `${protocol}://${hostHeader}` : (process.env.APP_URL || 'http://31.70.141.184');
+
+          const mailResult = await sendAppointmentConfirmationEmail({
+            to: u.email,
+            recipientName,
+            codice,
+            datetime: dataOra,
+            modalita: modalita || 'PRESENZA',
+            videocallLink,
+            sportelloNome: s?.nome || 'Sportello Imprese Molise',
+            sportelloIndirizzo: s?.indirizzo || '',
+            sportelloComune: s?.comune || '',
+            sportelloTelefono: s?.telefono || '0874 011011',
+            sportelloEmail: s?.email || 'sportelloimprese@sviluppoitaliamolise.it',
+            categoriaBisogno: categoria || 'Bandi e finanziamenti',
+            motivoTesto: motivo || '',
+            tokenModifica: token,
+            portalUrl
+          });
+          emailSent = mailResult.success;
+        }
+      } catch (mErr) {
+        console.warn('[CRM APPOINTMENT EMAIL WARN]:', mErr);
+      }
+    }
+
+    res.json({ success: true, id: ins.lastInsertRowid, codice, emailSent });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Explicit send/resend email for an existing appointment from CRM
+app.post('/api/crm/appuntamenti/:id/send-email', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { customEmail } = req.body;
+
+    const appt = queryOne(`
+      SELECT a.*, s.nome as sportello_nome, s.comune as sportello_comune, s.indirizzo as sportello_indirizzo, s.telefono as sportello_telefono, s.email as sportello_email,
+             u.email as utente_email, u.tipo as utente_tipo,
+             pi.denominazione as impresa_denominazione, pi.nome_referente as impresa_nome_ref, pi.cognome_referente as impresa_cognome_ref,
+             pa.nome as aspirante_nome, pa.cognome as aspirante_cognome
+      FROM appuntamenti a
+      JOIN sportelli s ON a.sportello_id = s.id
+      JOIN utenti u ON a.utente_id = u.id
+      LEFT JOIN profili_impresa pi ON u.id = pi.utente_id
+      LEFT JOIN profili_aspirante pa ON u.id = pa.utente_id
+      WHERE a.id = ?
+    `, [id]);
+
+    if (!appt) return res.status(404).json({ error: 'Appuntamento non trovato' });
+
+    const destEmail = (customEmail || appt.utente_email || '').trim().toLowerCase();
+    if (!destEmail) {
+      return res.status(400).json({ error: 'Nessun indirizzo email associato all\'utente' });
+    }
+
+    const recipientName = appt.utente_tipo === 'IMPRESA'
+      ? `${appt.impresa_nome_ref || ''} ${appt.impresa_cognome_ref || ''}`.trim() || appt.impresa_denominazione || 'Gentile Impresa'
+      : `${appt.aspirante_nome || ''} ${appt.aspirante_cognome || ''}`.trim() || 'Gentile Utente';
+
+    const hostHeader = req.get('host');
+    const protocol = req.protocol === 'https' || req.get('x-forwarded-proto') === 'https' ? 'https' : 'http';
+    const portalUrl = hostHeader ? `${protocol}://${hostHeader}` : (process.env.APP_URL || 'http://31.70.141.184');
+
+    const mailResult = await sendAppointmentConfirmationEmail({
+      to: destEmail,
+      recipientName,
+      codice: appt.codice,
+      datetime: appt.data_ora,
+      modalita: appt.modalita,
+      videocallLink: appt.videocall_link,
+      sportelloNome: appt.sportello_nome,
+      sportelloIndirizzo: appt.sportello_indirizzo,
+      sportelloComune: appt.sportello_comune,
+      sportelloTelefono: appt.sportello_telefono,
+      sportelloEmail: appt.sportello_email,
+      categoriaBisogno: appt.categoria_bisogno || 'Bandi e finanziamenti',
+      motivoTesto: appt.motivo_testo || '',
+      tokenModifica: appt.token_modifica,
+      portalUrl
+    });
+
+    res.json({
+      success: mailResult.success,
+      emailSent: mailResult.success,
+      destEmail,
+      simulated: mailResult.simulated,
+      messaggio: mailResult.success ? `Email inviata a ${destEmail}` : `Errore invio: ${mailResult.error}`
+    });
   } catch (err: any) {
     res.status(500).json({ error: err.message });
   }
@@ -972,7 +1225,22 @@ app.get('/api/crm/utenti/:id', (req, res) => {
 
     const consensi = queryAll('SELECT * FROM consensi WHERE utente_id = ? ORDER BY timestamp DESC', [id]);
 
-    res.json({ utente, profilo, appuntamenti, interazioni, consensi });
+    const privacyConsent = consensi.find((c: any) => c.tipo === 'PRIVACY' && (c.accettato === 1 || c.accettato === true));
+    const newsletterConsent = consensi.find((c: any) => c.tipo === 'NEWSLETTER');
+    const geoConsent = consensi.find((c: any) => c.tipo === 'GEOLOCALIZZAZIONE');
+
+    const rawCreationDate = utente.data_creazione || utente.creato_il || '';
+
+    const utenteNormalized = {
+      ...utente,
+      creato_il: rawCreationDate,
+      data_creazione: rawCreationDate,
+      consenso_privacy_data: privacyConsent?.timestamp || rawCreationDate || null,
+      consenso_newsletter: newsletterConsent ? Boolean(newsletterConsent.accettato) : false,
+      consenso_geo: geoConsent ? Boolean(geoConsent.accettato) : false
+    };
+
+    res.json({ utente: utenteNormalized, profilo, appuntamenti, interazioni, consensi });
   } catch (err: any) {
     res.status(500).json({ error: err.message });
   }

@@ -49,7 +49,7 @@ export const ReportView: React.FC<ReportViewProps> = ({ role }) => {
         `"${u.telefono || ''}"`,
         `"${u.comune_sede || u.comune_residenza || ''}"`,
         `"${u.settore_ris3 || u.settore_attivita || ''}"`,
-        u.creato_il
+        u.creato_il || u.data_creazione || ''
       ]);
 
       const csvContent = 'data:text/csv;charset=utf-8,' + [headers.join(','), ...rows.map((r: any) => r.join(','))].join('\n');

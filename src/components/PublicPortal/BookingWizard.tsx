@@ -143,6 +143,31 @@ export const BookingWizard: React.FC<BookingWizardProps> = ({
   const [lockTimerSecs, setLockTimerSecs] = useState<number>(600); // 10 minutes countdown
   const [copiedLink, setCopiedLink] = useState(false);
   const [sessionId] = useState(() => Math.random().toString(36).substring(2));
+  const [resendingEmail, setResendingEmail] = useState(false);
+  const [emailFeedback, setEmailFeedback] = useState<string | null>(null);
+
+  const handleResendEmail = async () => {
+    if (!completedAppointment) return;
+    setResendingEmail(true);
+    setEmailFeedback(null);
+    try {
+      const res = await fetch(`/api/prenotazioni/${completedAppointment.token_modifica || completedAppointment.codice}/rinvia-email`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: completedAppointment.utente_email })
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setEmailFeedback(`✓ Email inviata con successo a ${completedAppointment.utente_email}`);
+      } else {
+        setEmailFeedback(`Esito invio: ${data.messaggio || data.error || 'Operazione completata'}`);
+      }
+    } catch (e: any) {
+      setEmailFeedback(`Errore: ${e.message}`);
+    } finally {
+      setResendingEmail(false);
+    }
+  };
 
   // Fetch sportelli on mount
   useEffect(() => {
@@ -1708,6 +1733,38 @@ export const BookingWizard: React.FC<BookingWizardProps> = ({
                   Conserva questo codice o mostralo all'operatore al momento del check-in.
                 </span>
               </div>
+
+              {/* Email Confirmation Feedback Box */}
+              {completedAppointment.utente_email && (
+                <div className="bg-emerald-50/90 border border-emerald-200 rounded-2xl p-4 max-w-md mx-auto text-center space-y-2">
+                  <div className="flex items-center justify-center gap-1.5 text-emerald-800 font-bold text-xs">
+                    <Mail className="w-4 h-4 text-emerald-600 shrink-0" />
+                    <span>Email di conferma inviata con successo</span>
+                  </div>
+                  <p className="text-[11px] text-emerald-900/80 leading-relaxed">
+                    È stata recapitata una notifica con il riepilogo dell'appuntamento e l'allegato calendario (.ics) a:
+                  </p>
+                  <div className="font-mono font-bold text-xs text-emerald-950 bg-white/90 px-3 py-1 rounded-lg border border-emerald-300 inline-block shadow-2xs">
+                    {completedAppointment.utente_email}
+                  </div>
+                  <div>
+                    <button
+                      type="button"
+                      onClick={handleResendEmail}
+                      disabled={resendingEmail}
+                      className="inline-flex items-center gap-1 text-[11px] text-sky-700 hover:text-sky-900 font-semibold underline mt-1 cursor-pointer disabled:opacity-50"
+                    >
+                      <RotateCcw className={`w-3 h-3 ${resendingEmail ? 'animate-spin' : ''}`} />
+                      <span>{resendingEmail ? 'Invio in corso...' : 'Non trovi l\'email? Clicca per reinviarla'}</span>
+                    </button>
+                    {emailFeedback && (
+                      <div className="text-[11px] font-semibold text-emerald-800 mt-1">
+                        {emailFeedback}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
 
               {/* Primary Actions: Download PDF & Add to Calendar (.ics) */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">

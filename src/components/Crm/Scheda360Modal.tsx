@@ -7,7 +7,6 @@ import {
   ShieldCheck,
   Calendar,
   MessageSquare,
-  Award,
   Save,
   Download,
   Trash2,
@@ -28,6 +27,25 @@ interface Scheda360ModalProps {
   onUpdated?: () => void;
   onNavigateToBandi?: (user?: any) => void;
 }
+
+const parseSafeDate = (val?: any): Date | null => {
+  if (!val) return null;
+  const s = typeof val === 'string' ? val.trim().replace(' ', 'T') : val;
+  const d = new Date(s);
+  return isNaN(d.getTime()) ? null : d;
+};
+
+const formatSafeDate = (val?: any): string => {
+  const d = parseSafeDate(val);
+  if (!d) return 'N/D';
+  return d.toLocaleDateString('it-IT', { day: '2-digit', month: '2-digit', year: 'numeric' });
+};
+
+const formatSafeDateTime = (val?: any): string => {
+  const d = parseSafeDate(val);
+  if (!d) return 'N/D';
+  return `${d.toLocaleDateString('it-IT', { day: '2-digit', month: 'short', year: 'numeric' })} ore ${d.toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' })}`;
+};
 
 export const Scheda360Modal: React.FC<Scheda360ModalProps> = ({
   userId,
@@ -192,25 +210,13 @@ export const Scheda360Modal: React.FC<Scheda360ModalProps> = ({
                 </span>
               </div>
               <span className="text-[11px] sm:text-xs text-slate-400 block truncate">
-                ID #{utente.id} • {new Date(utente.creato_il).toLocaleDateString('it-IT')} via {utente.canale_accesso}
+                ID #{utente.id} • {formatSafeDate(utente.creato_il || utente.data_creazione || utente.created_at)} via {utente.canale_accesso || 'Sito Web'}
               </span>
             </div>
           </div>
 
           <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
-            {onNavigateToBandi && (
-              <button
-                onClick={() => {
-                  onClose();
-                  onNavigateToBandi(userData);
-                }}
-                className="px-2.5 sm:px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-white text-xs font-bold flex items-center gap-1.5 shadow-xs transition-colors shrink-0"
-              >
-                <Award className="w-3.5 h-3.5 text-amber-400 shrink-0" />
-                <span className="hidden xs:inline">Bandi</span>
-              </button>
-            )}
-            <button onClick={onClose} className="p-1 rounded-md text-slate-400 hover:text-white hover:bg-slate-800 shrink-0">
+            <button onClick={onClose} className="p-1 rounded-md text-slate-400 hover:text-white hover:bg-slate-800 shrink-0 cursor-pointer">
               <X className="w-5 h-5" />
             </button>
           </div>
@@ -255,7 +261,7 @@ export const Scheda360Modal: React.FC<Scheda360ModalProps> = ({
               <div className="space-y-1.5 text-[11px]">
                 <div className="flex items-center justify-between">
                   <span>Consenso Base Trattamento (Obbligatorio):</span>
-                  <span className="font-bold text-emerald-700">✓ Concesso ({utente.consenso_privacy_data ? new Date(utente.consenso_privacy_data).toLocaleDateString('it-IT') : 'N/D'})</span>
+                  <span className="font-bold text-emerald-700">✓ Concesso ({formatSafeDate(utente.consenso_privacy_data || utente.creato_il || utente.data_creazione)})</span>
                 </div>
                 <div className="flex items-center justify-between">
                   <span>Newsletter e Aggiornamenti Bandi:</span>
@@ -478,7 +484,7 @@ export const Scheda360Modal: React.FC<Scheda360ModalProps> = ({
                       <div className="flex items-center gap-2">
                         <span className="font-mono font-bold text-sky-900">{a.codice}</span>
                         <span className="font-semibold text-slate-900">
-                          {new Date(a.data_ora).toLocaleDateString('it-IT', { day: '2-digit', month: 'short', year: 'numeric' })} ore {new Date(a.data_ora).toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' })}
+                          {formatSafeDateTime(a.data_ora)}
                         </span>
                         <span className="px-2 py-0.5 rounded-full font-bold text-[10px] bg-slate-100">{a.stato}</span>
                       </div>
@@ -503,7 +509,7 @@ export const Scheda360Modal: React.FC<Scheda360ModalProps> = ({
                 {interazioni.map((i: any) => (
                   <div key={i.id} className="p-3 rounded-xl border border-slate-200 bg-white">
                     <div className="flex items-center justify-between text-[11px] text-slate-500 mb-1">
-                      <span>{new Date(i.data_ora).toLocaleDateString('it-IT')} ore {new Date(i.data_ora).toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' })} • Canale: <strong>{i.canale}</strong></span>
+                      <span>{formatSafeDateTime(i.data_ora)} • Canale: <strong>{i.canale}</strong></span>
                       <span className="font-semibold text-slate-800">Operatore: {i.operatore_nome}</span>
                     </div>
                     <div className="font-bold text-slate-900">{i.tipologia_richiesta}</div>

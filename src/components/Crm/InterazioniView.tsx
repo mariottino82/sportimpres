@@ -431,14 +431,7 @@ export const InterazioniView: React.FC<InterazioniViewProps> = ({ role, onOpenUs
                 </div>
               </div>
 
-              <div className="pt-3 border-t border-slate-100 flex items-center justify-end gap-2">
-                <button
-                  type="button"
-                  onClick={() => setShowAddModal(false)}
-                  className="px-4 py-2 rounded-lg text-slate-600 hover:bg-slate-100"
-                >
-                  Annulla
-                </button>
+              <div className="pt-3 border-t border-slate-100 flex items-center justify-end">
                 <button
                   type="submit"
                   className="px-4 py-2 rounded-lg bg-sky-600 hover:bg-sky-700 text-white font-bold"
