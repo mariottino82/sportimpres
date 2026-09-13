@@ -562,7 +562,7 @@ export const BookingWizard: React.FC<BookingWizardProps> = ({
                 1. Titolare del Trattamento
               </p>
               <p>
-                Il Titolare del trattamento è <strong>Sviluppo Italia Molise S.p.A.</strong>, con sede in Via Vico 4, 86100 Campobasso (CB). Email: privacy@sviluppoitaliamolise.it.
+                Il Titolare del trattamento è <strong>Sviluppo Italia Molise S.p.A.</strong> (P.IVA 00852240704), con sede in Via Vico 4, 86100 Campobasso (CB). Email: privacy@sviluppoitaliamolise.it.
               </p>
               <p className="font-semibold text-slate-800">
                 2. Finalità del Trattamento

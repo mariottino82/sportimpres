@@ -481,7 +481,7 @@ export const LandingView: React.FC<LandingViewProps> = ({
               Iniziativa promossa dall'Assessorato allo Sviluppo Economico della Regione Molise e finanziata dall'Azione 1.4.2 del PR Molise FESR FSE+ 2021-2027 (CUP J19B25000190009).
             </p>
             <p className="text-[11px] text-slate-500">
-              Sviluppo Italia Molise S.p.A. - Via Vico 4, 86100 Campobasso (CB) - P.IVA 01234560700
+              Sviluppo Italia Molise S.p.A. - Via Vico 4, 86100 Campobasso (CB) - P.IVA 00852240704
             </p>
           </div>
 

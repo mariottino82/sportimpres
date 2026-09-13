@@ -103,7 +103,7 @@ export const PolicyModal: React.FC<PolicyModalProps> = ({ type: initialType, onC
                 </p>
                 <div className="bg-slate-50 p-3.5 rounded-xl border border-slate-200/80 space-y-1 text-[11px] text-slate-700">
                   <p>• <strong>Sede Legale ed Operativa:</strong> Via Vico 4, 86100 Campobasso (CB)</p>
-                  <p>• <strong>Codice Fiscale / Partita IVA:</strong> 01234560700</p>
+                  <p>• <strong>Codice Fiscale / Partita IVA:</strong> 00852240704</p>
                   <p>• <strong>Email Istituzionale:</strong> sportelloimprese@sviluppoitaliamolise.it</p>
                   <p>• <strong>Posta Elettronica Certificata (PEC):</strong> sviluppoitaliamolise@pec.it</p>
                   <p>• <strong>Responsabile della Protezione Dati (DPO):</strong> dpo@sviluppoitaliamolise.it</p>
