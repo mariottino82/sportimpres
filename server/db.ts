@@ -1,75 +1,75 @@
 import fs from 'fs';
 import path from 'path';
-import initSqlJs, { Database } from 'sql.js';
+import Database from 'better-sqlite3';
+
+export type DbInstance = Database.Database;
 
 const DB_FILE_PATH = process.env.DATABASE_PATH || path.resolve(process.cwd(), 'sportello.db');
 
-let dbInstance: Database | null = null;
+let dbInstance: Database.Database | null = null;
 
-export async function getDb(): Promise<Database> {
+export async function getDb(): Promise<Database.Database> {
   if (dbInstance) {
     return dbInstance;
   }
 
-  const SQL = await initSqlJs();
-
-  if (fs.existsSync(DB_FILE_PATH)) {
-    try {
-      const fileBuffer = fs.readFileSync(DB_FILE_PATH);
-      dbInstance = new SQL.Database(fileBuffer);
-    } catch (err) {
-      console.error('Error reading existing sportello.db, creating fresh:', err);
-      dbInstance = new SQL.Database();
-    }
-  } else {
-    dbInstance = new SQL.Database();
+  // Assicura che la cartella esista se il percorso è personalizzato
+  const dir = path.dirname(DB_FILE_PATH);
+  if (!fs.existsSync(dir)) {
+    fs.mkdirSync(dir, { recursive: true });
   }
 
+  // Apertura del database SQLite nativo C (better-sqlite3)
+  // 100% compatibile a livello di byte con il file sportello.db già esistente sul server reale
+  dbInstance = new Database(DB_FILE_PATH);
+
+  // Ottimizzazioni per multi-threading, concorrenza elevata e massima velocità:
+  // 1. Write-Ahead Logging (WAL): letture e scritture simultanee non si bloccano a vicenda
+  dbInstance.pragma('journal_mode = WAL');
+  // 2. Synchronous NORMAL: massima velocità di scrittura con integrità crash-safe garantita in modalità WAL
+  dbInstance.pragma('synchronous = NORMAL');
+  // 3. Busy timeout: attesa fino a 5 secondi in caso di lock momentaneo invece di errore SQLITE_BUSY
+  dbInstance.pragma('busy_timeout = 5000');
+  // 4. Chiavi esterne e integrità relazionale
+  dbInstance.pragma('foreign_keys = ON');
+  // 5. Cache di memoria di 20MB per risposte istantanee alle query frequenti
+  dbInstance.pragma('cache_size = -20000');
+
   initTables(dbInstance);
-  saveDb();
   return dbInstance;
 }
 
 export function saveDb(): void {
-  if (!dbInstance) return;
-  try {
-    const data = dbInstance.export();
-    fs.writeFileSync(DB_FILE_PATH, Buffer.from(data));
-  } catch (err) {
-    console.error('Failed to persist sportello.db:', err);
-  }
+  // In better-sqlite3 con WAL mode, ogni scrittura viene scritta e sincronizzata su disco direttamente dal kernel.
+  // Mantenuta per retrocompatibilità con tutte le chiamate esistenti.
 }
 
-// Helper to run query with params safely and return objects
+// Helper tipizzato per eseguire query di selezione con parametri sicuri
 export function queryAll<T = any>(sql: string, params: any[] = []): T[] {
   if (!dbInstance) throw new Error('Database not initialized');
   const stmt = dbInstance.prepare(sql);
-  stmt.bind(params);
-  const rows: T[] = [];
-  while (stmt.step()) {
-    rows.push(stmt.getAsObject() as T);
-  }
-  stmt.free();
-  return rows;
+  return (Array.isArray(params) ? stmt.all(...params) : stmt.all(params)) as T[];
 }
 
 export function queryOne<T = any>(sql: string, params: any[] = []): T | null {
-  const rows = queryAll<T>(sql, params);
-  return rows.length > 0 ? rows[0] : null;
+  if (!dbInstance) throw new Error('Database not initialized');
+  const stmt = dbInstance.prepare(sql);
+  const row = Array.isArray(params) ? stmt.get(...params) : stmt.get(params);
+  return (row as T) || null;
 }
 
 export function run(sql: string, params: any[] = []): { lastInsertRowid: number; changes: number } {
   if (!dbInstance) throw new Error('Database not initialized');
-  dbInstance.run(sql, params);
-  const res = dbInstance.exec("SELECT last_insert_rowid() as id, changes() as ch");
-  const lastInsertRowid = res.length && res[0].values.length ? (res[0].values[0][0] as number) : 0;
-  const changes = res.length && res[0].values.length ? (res[0].values[0][1] as number) : 0;
-  saveDb();
-  return { lastInsertRowid, changes };
+  const stmt = dbInstance.prepare(sql);
+  const info = Array.isArray(params) ? stmt.run(...params) : stmt.run(params);
+  return {
+    lastInsertRowid: Number(info.lastInsertRowid),
+    changes: Number(info.changes),
+  };
 }
 
-function initTables(db: Database) {
-  db.run(`
+function initTables(db: Database.Database) {
+  db.exec(`
     CREATE TABLE IF NOT EXISTS sportelli (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       comune TEXT NOT NULL,
@@ -245,55 +245,50 @@ function initTables(db: Database) {
   seedCrmOperatori(db);
   seedInitialData(db);
 
-  // Rimozione automatica o controllata dei dati fittizi di prova se siamo in produzione o richiesta esplicita
+  // Rimozione controllata dei dati fittizi di prova in produzione
   if (process.env.NODE_ENV === 'production' || process.env.PURGE_SAMPLE_DATA === 'true') {
     purgeSampleTestData(db);
   }
 }
 
-function migrateSportelliColumns(db: Database) {
+function migrateSportelliColumns(db: Database.Database) {
   try {
-    const colsRes = db.exec("PRAGMA table_info(sportelli)");
-    if (colsRes.length && colsRes[0].values) {
-      const colNames = colsRes[0].values.map((v: any[]) => v[1]);
+    const cols = db.pragma('table_info(sportelli)') as Array<{ name: string }>;
+    if (cols && cols.length) {
+      const colNames = cols.map(c => c.name);
       
       if (!colNames.includes('responsabile_nome')) {
-        db.run("ALTER TABLE sportelli ADD COLUMN responsabile_nome TEXT DEFAULT ''");
+        db.exec("ALTER TABLE sportelli ADD COLUMN responsabile_nome TEXT DEFAULT ''");
       }
       if (!colNames.includes('responsabile_email')) {
-        db.run("ALTER TABLE sportelli ADD COLUMN responsabile_email TEXT DEFAULT ''");
+        db.exec("ALTER TABLE sportelli ADD COLUMN responsabile_email TEXT DEFAULT ''");
       }
       if (!colNames.includes('responsabile_telefono')) {
-        db.run("ALTER TABLE sportelli ADD COLUMN responsabile_telefono TEXT DEFAULT ''");
+        db.exec("ALTER TABLE sportelli ADD COLUMN responsabile_telefono TEXT DEFAULT ''");
       }
       if (!colNames.includes('online_attivo')) {
-        db.run("ALTER TABLE sportelli ADD COLUMN online_attivo INTEGER DEFAULT 1");
+        db.exec("ALTER TABLE sportelli ADD COLUMN online_attivo INTEGER DEFAULT 1");
       }
       if (!colNames.includes('link_videocall')) {
-        db.run("ALTER TABLE sportelli ADD COLUMN link_videocall TEXT DEFAULT ''");
+        db.exec("ALTER TABLE sportelli ADD COLUMN link_videocall TEXT DEFAULT ''");
       }
       if (!colNames.includes('note_accesso')) {
-        db.run("ALTER TABLE sportelli ADD COLUMN note_accesso TEXT DEFAULT ''");
+        db.exec("ALTER TABLE sportelli ADD COLUMN note_accesso TEXT DEFAULT ''");
       }
       if (!colNames.includes('provincia')) {
-        db.run("ALTER TABLE sportelli ADD COLUMN provincia TEXT DEFAULT ''");
+        db.exec("ALTER TABLE sportelli ADD COLUMN provincia TEXT DEFAULT ''");
       }
 
-      // Populate intelligent defaults for existing records
-      db.run(`
+      db.exec(`
         UPDATE sportelli SET 
           provincia = CASE 
             WHEN comune LIKE '%Isernia%' OR comune LIKE '%Venafro%' OR comune LIKE '%Agnone%' OR comune LIKE '%Frosolone%' OR comune LIKE '%Fornelli%' THEN 'IS'
             ELSE 'CB'
           END
         WHERE provincia IS NULL OR provincia = '';
-      `);
 
-      db.run(`
         UPDATE sportelli SET online_attivo = 1 WHERE online_attivo IS NULL;
-      `);
 
-      db.run(`
         UPDATE sportelli SET 
           responsabile_nome = CASE
             WHEN comune LIKE '%Campobasso%' THEN 'Dott. Marco Rossi'
@@ -311,58 +306,45 @@ function migrateSportelliColumns(db: Database) {
             ELSE 'Responsabile Territoriale SIM'
           END
         WHERE responsabile_nome IS NULL OR responsabile_nome = '';
-      `);
 
-      db.run(`
         UPDATE sportelli SET
           responsabile_email = 'sportelloimprese@sviluppoitaliamolise.it'
         WHERE responsabile_email IS NULL OR responsabile_email = '';
-      `);
 
-      db.run(`
         UPDATE sportelli SET
           link_videocall = 'https://meet.jit.si/SportelloImpreseMolise_' || id
         WHERE link_videocall IS NULL OR link_videocall = '';
       `);
-
-      saveDb();
     }
   } catch (e) {
     console.warn('Sportelli migration warning:', e);
   }
 }
 
-function migrateBandiColumns(db: Database) {
+function migrateBandiColumns(db: Database.Database) {
   try {
-    const colsRes = db.exec("PRAGMA table_info(bandi)");
-    if (colsRes.length && colsRes[0].values) {
-      const colNames = colsRes[0].values.map((v: any[]) => v[1]);
+    const cols = db.pragma('table_info(bandi)') as Array<{ name: string }>;
+    if (cols && cols.length) {
+      const colNames = cols.map(c => c.name);
       if (!colNames.includes('allegati')) {
-        db.run("ALTER TABLE bandi ADD COLUMN allegati TEXT DEFAULT '[]'");
+        db.exec("ALTER TABLE bandi ADD COLUMN allegati TEXT DEFAULT '[]'");
         
-        // Add sample official attachments to existing default bandi
-        db.run(`
+        db.exec(`
           UPDATE bandi SET allegati = json_array(
             json_object('id', 'att-b1-1', 'nome', 'Avviso_Pubblico_Transizione_5_0.pdf', 'dimensione', '1.8 MB', 'tipo', 'application/pdf', 'data_caricamento', '2026-08-10'),
             json_object('id', 'att-b1-2', 'nome', 'Formulario_Domanda_Allegato_A.docx', 'dimensione', '420 KB', 'tipo', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'data_caricamento', '2026-08-10'),
             json_object('id', 'att-b1-3', 'nome', 'Guida_Spese_Ammissibili_FESR.pdf', 'dimensione', '950 KB', 'tipo', 'application/pdf', 'data_caricamento', '2026-08-11')
           ) WHERE id = 1 AND (allegati IS NULL OR allegati = '[]' OR allegati = '');
-        `);
 
-        db.run(`
           UPDATE bandi SET allegati = json_array(
             json_object('id', 'att-b2-1', 'nome', 'Bando_Nuova_Impresa_Molise.pdf', 'dimensione', '1.2 MB', 'tipo', 'application/pdf', 'data_caricamento', '2026-07-20'),
             json_object('id', 'att-b2-2', 'nome', 'Modello_Business_Plan_Semplicato.xlsx', 'dimensione', '510 KB', 'tipo', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'data_caricamento', '2026-07-20')
           ) WHERE id = 2 AND (allegati IS NULL OR allegati = '[]' OR allegati = '');
-        `);
 
-        db.run(`
           UPDATE bandi SET allegati = json_array(
             json_object('id', 'att-b3-1', 'nome', 'Disciplinare_Filiera_Agrifood.pdf', 'dimensione', '2.1 MB', 'tipo', 'application/pdf', 'data_caricamento', '2026-08-01')
           ) WHERE id = 3 AND (allegati IS NULL OR allegati = '[]' OR allegati = '');
         `);
-
-        saveDb();
       }
     }
   } catch (e) {
@@ -370,17 +352,15 @@ function migrateBandiColumns(db: Database) {
   }
 }
 
-function seedCrmOperatori(db: Database) {
+function seedCrmOperatori(db: Database.Database) {
   try {
-    const check = db.exec("SELECT COUNT(*) FROM crm_operatori");
-    if (check.length && check[0].values.length && (check[0].values[0][0] as number) > 0) {
-      // Table already populated, just ensure admin has ADMIN role
-      db.run("UPDATE crm_operatori SET ruolo = 'ADMIN' WHERE username = 'admin' AND ruolo = 'COORDINATORE'");
-      saveDb();
+    const check = db.prepare("SELECT COUNT(*) as count FROM crm_operatori").get() as { count: number } | undefined;
+    if (check && check.count > 0) {
+      db.prepare("UPDATE crm_operatori SET ruolo = 'ADMIN' WHERE username = 'admin' AND ruolo = 'COORDINATORE'").run();
       return;
     }
 
-    db.run(`
+    db.exec(`
       INSERT OR IGNORE INTO crm_operatori (id, username, password, nome, cognome, email, ruolo, sportello_id, sportello_nome, attivo, creato_il, note)
       VALUES 
         (1, 'admin', 'molise2027', 'Marco', 'Rossi', 'm.rossi@sviluppoitaliamolise.it', 'ADMIN', NULL, 'Tutti gli Sportelli (Sede Centrale)', 1, '2026-08-01 09:00:00', 'Account Amministratore di Sistema CRM'),
@@ -391,41 +371,32 @@ function seedCrmOperatori(db: Database) {
         (6, 'regione.molise', 'regione2027', 'Antonio', 'Di Iorio', 'sviluppoeconomico@regione.molise.it', 'ENTE', NULL, 'Regione Molise - Assessorato', 1, '2026-08-01 11:30:00', 'Accesso Ente Promotore e monitoraggio KPI'),
         (7, 'coordinatore', 'coord2027', 'Valeria', 'D''Amico', 'v.damico@sviluppoitaliamolise.it', 'COORDINATORE', NULL, 'Coordinamento Generale (12 Sportelli)', 1, '2026-08-01 08:30:00', 'Coordinatore Generale Rete Sportelli Territoriali');
     `);
-    saveDb();
   } catch (err) {
     console.error('Error seeding crm_operatori:', err);
   }
 }
 
-function seedInitialData(db: Database) {
-  // Check if sportelli already populated
-  const check = db.exec("SELECT COUNT(*) FROM sportelli");
-  if (check.length && check[0].values.length && (check[0].values[0][0] as number) > 0) {
+function seedInitialData(db: Database.Database) {
+  const check = db.prepare("SELECT COUNT(*) as count FROM sportelli").get() as { count: number } | undefined;
+  if (check && check.count > 0) {
     return;
   }
 
   // 12 Sportelli from Page 7
   const sportelli = [
-    { comune: "Campobasso (sede SIM)", nome: "Sede Centrale Sviluppo Italia Molise", indirizzo: "Via Vico 4, 86100 Campobasso (CB)", lat: 41.5603, lng: 14.6627, giorni: "Lunedì, Mercoledì, Venerdì", orario: "09:30 - 12:00", cadenza: "Settimanale (3 gg)", operatori: "Dott. Marco Rossi, Dott.ssa Elena Conti" },
-    { comune: "Termoli", nome: "Sportello Territoriale di Termoli", indirizzo: "Piazza Sant'Antonio 1, 86039 Termoli (CB)", lat: 42.0006, lng: 14.9946, giorni: "Mercoledì", orario: "09:30 - 12:00", cadenza: "Settimanale", operatori: "Dott. Paolo Bianchi" },
-    { comune: "Isernia", nome: "Sportello Territoriale di Isernia", indirizzo: "Piazza San Francesco 2, 86170 Isernia (IS)", lat: 41.5960, lng: 14.2306, giorni: "Giovedì", orario: "09:30 - 12:00", cadenza: "Settimanale", operatori: "Dott.ssa Anna Moretti" },
-    { comune: "Venafro", nome: "Sportello Territoriale di Venafro", indirizzo: "Piazza Cavour 8, 86079 Venafro (IS)", lat: 41.4850, lng: 14.0450, giorni: "Martedì", orario: "15:00 - 17:00", cadenza: "Settimanale", operatori: "Dott. Luca Ferrara" },
-    { comune: "Agnone", nome: "Sportello Territoriale Alto Molise - Agnone", indirizzo: "Salita San Pietro 5, 86081 Agnone (IS)", lat: 41.8083, lng: 14.3778, giorni: "Martedì", orario: "09:30 - 12:00", cadenza: "Settimanale", operatori: "Dott.ssa Giulia De Angelis" },
-    { comune: "Campochiaro (Incubatore)", nome: "Incubatore Regionale delle Imprese", indirizzo: "Zona Industriale Campochiaro, 86020 Campochiaro (CB)", lat: 41.4500, lng: 14.5167, giorni: "Mercoledì", orario: "09:30 - 12:00", cadenza: "Settimanale", operatori: "Ing. Roberto Santoro" },
-    { comune: "Riccia", nome: "Sportello Territoriale Fortore - Riccia", indirizzo: "Corso Garibaldi 42, 86016 Riccia (CB)", lat: 41.4833, lng: 14.8333, giorni: "Venerdì", orario: "09:30 - 12:00", cadenza: "Quindicinale", operatori: "Dott. Marco Rossi" },
-    { comune: "Santa Croce di Magliano", nome: "Sportello Basso Molise Interno", indirizzo: "Via Municipio 12, 86047 Santa Croce di Magliano (CB)", lat: 41.7128, lng: 14.9906, giorni: "Martedì", orario: "15:00 - 17:00", cadenza: "Quindicinale", operatori: "Dott. Paolo Bianchi" },
-    { comune: "Montenero di Bisaccia", nome: "Sportello Costa Nord - Montenero", indirizzo: "Piazza della Libertà 3, 86036 Montenero di Bisaccia (CB)", lat: 41.9500, lng: 14.7833, giorni: "Mercoledì", orario: "15:30 - 17:00", cadenza: "Quindicinale", operatori: "Dott. Paolo Bianchi" },
-    { comune: "Trivento", nome: "Sportello Valle del Trigno - Trivento", indirizzo: "Centro Polifunzionale, Corso Beniamino Mastroiacovo, 86029 Trivento (CB)", lat: 41.7833, lng: 14.5500, giorni: "Lunedì", orario: "15:00 - 17:00", cadenza: "Quindicinale", operatori: "Dott.ssa Elena Conti" },
-    { comune: "Frosolone", nome: "Sportello Montagnola Molisana - Frosolone", indirizzo: "Corso Vittorio Emanuele 18, 86098 Frosolone (IS)", lat: 41.6000, lng: 14.4500, giorni: "Lunedì", orario: "09:30 - 12:00", cadenza: "Quindicinale", operatori: "Dott.ssa Anna Moretti" },
-    { comune: "Fornelli", nome: "Sportello Valle del Volturno - Fornelli", indirizzo: "Via Roma 4, 86070 Fornelli (IS)", lat: 41.6056, lng: 14.1417, giorni: "Giovedì", orario: "15:00 - 17:00", cadenza: "Quindicinale", operatori: "Dott. Luca Ferrara" }
+    { comune: "Campobasso (sede SIM)", nome: "Sede Centrale Sviluppo Italia Molise", indirizzo: "Via Vico 4, 86100 Campobasso (CB)", lat: 41.5603, lng: 14.6627, giorni: "Lunedì, Mercoledì, Venerdì", orario: "09:30 - 12:00", cadenza: "Settimanale (3 gg)", operatori: "Dott. Marco Rossi, Dott.ssa Elena Conti", responsabileNome: "Dott. Marco Rossi", provincia: "CB" },
+    { comune: "Termoli", nome: "Sportello Territoriale di Termoli", indirizzo: "Piazza Sant'Antonio 1, 86039 Termoli (CB)", lat: 42.0006, lng: 14.9946, giorni: "Mercoledì", orario: "09:30 - 12:00", cadenza: "Settimanale", operatori: "Dott. Paolo Bianchi", responsabileNome: "Dott. Paolo Bianchi", provincia: "CB" },
+    { comune: "Isernia", nome: "Sportello Territoriale di Isernia", indirizzo: "Piazza San Francesco 2, 86170 Isernia (IS)", lat: 41.5960, lng: 14.2306, giorni: "Giovedì", orario: "09:30 - 12:00", cadenza: "Settimanale", operatori: "Dott.ssa Anna Moretti", responsabileNome: "Dott.ssa Anna Moretti", provincia: "IS" },
+    { comune: "Venafro", nome: "Sportello Territoriale di Venafro", indirizzo: "Piazza Cavour 8, 86079 Venafro (IS)", lat: 41.4850, lng: 14.0450, giorni: "Martedì", orario: "15:00 - 17:00", cadenza: "Settimanale", operatori: "Dott. Luca Ferrara", responsabileNome: "Dott. Luca Ferrara", provincia: "IS" },
+    { comune: "Agnone", nome: "Sportello Territoriale Alto Molise - Agnone", indirizzo: "Salita San Pietro 5, 86081 Agnone (IS)", lat: 41.8083, lng: 14.3778, giorni: "Martedì", orario: "09:30 - 12:00", cadenza: "Settimanale", operatori: "Dott.ssa Giulia De Angelis", responsabileNome: "Dott.ssa Giulia De Angelis", provincia: "IS" },
+    { comune: "Campochiaro (Incubatore)", nome: "Incubatore Regionale delle Imprese", indirizzo: "Zona Industriale Campochiaro, 86020 Campochiaro (CB)", lat: 41.4500, lng: 14.5167, giorni: "Mercoledì", orario: "09:30 - 12:00", cadenza: "Settimanale", operatori: "Ing. Roberto Santoro", responsabileNome: "Ing. Roberto Santoro", provincia: "CB" },
+    { comune: "Riccia", nome: "Sportello Territoriale Fortore - Riccia", indirizzo: "Corso Garibaldi 42, 86016 Riccia (CB)", lat: 41.4833, lng: 14.8333, giorni: "Venerdì", orario: "09:30 - 12:00", cadenza: "Quindicinale", operatori: "Dott. Marco Rossi", responsabileNome: "Dott. Marco Rossi", provincia: "CB" },
+    { comune: "Santa Croce di Magliano", nome: "Sportello Basso Molise Interno", indirizzo: "Via Municipio 12, 86047 Santa Croce di Magliano (CB)", lat: 41.7128, lng: 14.9906, giorni: "Martedì", orario: "15:00 - 17:00", cadenza: "Quindicinale", operatori: "Dott. Paolo Bianchi", responsabileNome: "Dott. Paolo Bianchi", provincia: "CB" },
+    { comune: "Montenero di Bisaccia", nome: "Sportello Costa Nord - Montenero", indirizzo: "Piazza della Libertà 3, 86036 Montenero di Bisaccia (CB)", lat: 41.9500, lng: 14.7833, giorni: "Mercoledì", orario: "15:30 - 17:00", cadenza: "Quindicinale", operatori: "Dott. Paolo Bianchi", responsabileNome: "Dott. Paolo Bianchi", provincia: "CB" },
+    { comune: "Trivento", nome: "Sportello Valle del Trigno - Trivento", indirizzo: "Centro Polifunzionale, Corso Beniamino Mastroiacovo, 86029 Trivento (CB)", lat: 41.7833, lng: 14.5500, giorni: "Lunedì", orario: "15:00 - 17:00", cadenza: "Quindicinale", operatori: "Dott.ssa Elena Conti", responsabileNome: "Dott.ssa Elena Conti", provincia: "CB" },
+    { comune: "Frosolone", nome: "Sportello Montagnola Molisana - Frosolone", indirizzo: "Corso Vittorio Emanuele 18, 86098 Frosolone (IS)", lat: 41.6000, lng: 14.4500, giorni: "Lunedì", orario: "09:30 - 12:00", cadenza: "Quindicinale", operatori: "Dott.ssa Anna Moretti", responsabileNome: "Dott.ssa Anna Moretti", provincia: "IS" },
+    { comune: "Fornelli", nome: "Sportello Valle del Volturno - Fornelli", indirizzo: "Via Roma 4, 86070 Fornelli (IS)", lat: 41.6056, lng: 14.1417, giorni: "Giovedì", orario: "15:00 - 17:00", cadenza: "Quindicinale", operatori: "Dott. Luca Ferrara", responsabileNome: "Dott. Luca Ferrara", provincia: "IS" }
   ];
-
-  for (const s of sportelli) {
-    db.run(`
-      INSERT INTO sportelli (comune, nome, indirizzo, lat, lng, giorni, orario, cadenza, operatori_assegnati)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `, [s.comune, s.nome, s.indirizzo, s.lat, s.lng, s.giorni, s.orario, s.cadenza, s.operatori]);
-  }
 
   // Bandi
   const bandi = [
@@ -491,13 +462,6 @@ function seedInitialData(db: Database) {
     }
   ];
 
-  for (const b of bandi) {
-    db.run(`
-      INSERT INTO bandi (titolo, ente, livello, area_ris3, beneficiari, scadenza, link, scheda_semplificata, stato)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'ATTIVO')
-    `, [b.titolo, b.ente, b.livello, b.area_ris3, b.beneficiari, b.scadenza, b.link, b.scheda_semplificata]);
-  }
-
   // Web TV Videos (Page 12)
   const videos = [
     {
@@ -542,13 +506,6 @@ function seedInitialData(db: Database) {
     }
   ];
 
-  for (const v of videos) {
-    db.run(`
-      INSERT INTO video_webtv (titolo, url_youtube, youtube_id, rubrica, descrizione, bando_id, data_pubblicazione, views)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-    `, [v.titolo, v.url_youtube, v.youtube_id, v.rubrica, v.descrizione, v.bando_id, v.pubblicato_il, v.views]);
-  }
-
   // QR Codes initial catalog (Page 11 & 12)
   const qrCodes = [
     { codice: "QR-CAMP-001", label: "Manifesto Ufficiale Campobasso Centro", comune: "Campobasso", evento: "Affissione Urbana 2026", canale: "Manifesto", url: "https://sviluppoitaliamolise.it/sportello?src=qr&comune=Campobasso", scansioni: 142 },
@@ -557,12 +514,62 @@ function seedInitialData(db: Database) {
     { codice: "QR-WEBTV-004", label: "Web TV La Bottega delle Opportunità", comune: "", evento: "Web TV", canale: "Web TV", url: "https://sviluppoitaliamolise.it/sportello?src=webtv", scansioni: 215 }
   ];
 
-  for (const q of qrCodes) {
-    db.run(`
-      INSERT INTO qr_codes (codice, label, comune, evento, canale, url, scansioni, creato_il)
-      VALUES (?, ?, ?, ?, ?, ?, ?, datetime('now'))
-    `, [q.codice, q.label, q.comune, q.evento, q.canale, q.url, q.scansioni]);
-  }
+  const insertSportello = db.prepare(`
+    INSERT INTO sportelli (id, comune, nome, indirizzo, telefono, email, lat, lng, giorni, orario, cadenza, attivo, operatori_assegnati, responsabile_nome, responsabile_email, responsabile_telefono, online_attivo, link_videocall, note_accesso, provincia)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?, ?, ?, ?)
+  `);
+
+  const insertBando = db.prepare(`
+    INSERT INTO bandi (titolo, ente, livello, area_ris3, beneficiari, scadenza, link, scheda_semplificata, stato)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'ATTIVO')
+  `);
+
+  const insertVideo = db.prepare(`
+    INSERT INTO video_webtv (titolo, url_youtube, youtube_id, rubrica, descrizione, bando_id, data_pubblicazione, views)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+  `);
+
+  const insertQr = db.prepare(`
+    INSERT INTO qr_codes (codice, label, comune, evento, canale, url, scansioni, creato_il)
+    VALUES (?, ?, ?, ?, ?, ?, ?, datetime('now'))
+  `);
+
+  const tx = db.transaction(() => {
+    for (const [idx, s] of sportelli.entries()) {
+      insertSportello.run(
+        idx + 1,
+        s.comune,
+        s.nome,
+        s.indirizzo,
+        '0874 011011',
+        'sportelloimprese@sviluppoitaliamolise.it',
+        s.lat,
+        s.lng,
+        s.giorni,
+        s.orario,
+        s.cadenza,
+        s.operatori,
+        s.responsabileNome,
+        'sportelloimprese@sviluppoitaliamolise.it',
+        '0874 011011',
+        1,
+        `https://meet.jit.si/SportelloImpreseMolise_${idx + 1}`,
+        'Accesso libero con precedenza alle prenotazioni confermate.',
+        s.provincia
+      );
+    }
+    for (const b of bandi) {
+      insertBando.run(b.titolo, b.ente, b.livello, b.area_ris3, b.beneficiari, b.scadenza, b.link, b.scheda_semplificata);
+    }
+    for (const v of videos) {
+      insertVideo.run(v.titolo, v.url_youtube, v.youtube_id, v.rubrica, v.descrizione, v.bando_id, v.pubblicato_il, v.views);
+    }
+    for (const q of qrCodes) {
+      insertQr.run(q.codice, q.label, q.comune, q.evento, q.canale, q.url, q.scansioni);
+    }
+  });
+
+  tx();
 
   // I dati di prova vengono inseriti SOLO se esplicitamente abilitati in locale con SEED_SAMPLE_DATA=true e MAI in produzione
   if (process.env.NODE_ENV !== 'production' && process.env.SEED_SAMPLE_DATA === 'true') {
@@ -570,48 +577,35 @@ function seedInitialData(db: Database) {
   }
 }
 
-export function purgeSampleTestData(db?: Database): { removedAppts: number; removedUsers: number } {
+export function purgeSampleTestData(db?: Database.Database): { removedAppts: number; removedUsers: number } {
   const targetDb = db || dbInstance;
   if (!targetDb) return { removedAppts: 0, removedUsers: 0 };
 
   try {
-    // Rimuove interazioni collegate ad appuntamenti o utenti di test
-    targetDb.run(`
+    targetDb.exec(`
       DELETE FROM interazioni WHERE appuntamento_id IN (
         SELECT id FROM appuntamenti WHERE codice IN ('SI-2026-000101', 'SI-2026-000102', 'SI-2026-000085')
       ) OR utente_id IN (
         SELECT id FROM utenti WHERE email IN ('info@molisetech.it', 'chiara.marini@email.it', 'direzione@agricolasamnium.it')
-      )
-    `);
+      );
 
-    // Rimuove appuntamenti di test
-    targetDb.run(`
-      DELETE FROM appuntamenti WHERE codice IN ('SI-2026-000101', 'SI-2026-000102', 'SI-2026-000085')
-    `);
+      DELETE FROM appuntamenti WHERE codice IN ('SI-2026-000101', 'SI-2026-000102', 'SI-2026-000085');
 
-    // Rimuove profili e consensi di test
-    targetDb.run(`
       DELETE FROM profili_impresa WHERE utente_id IN (
         SELECT id FROM utenti WHERE email IN ('info@molisetech.it', 'direzione@agricolasamnium.it')
-      )
-    `);
-    targetDb.run(`
+      );
+
       DELETE FROM profili_aspirante WHERE utente_id IN (
         SELECT id FROM utenti WHERE email IN ('chiara.marini@email.it')
-      )
-    `);
-    targetDb.run(`
+      );
+
       DELETE FROM consensi WHERE utente_id IN (
         SELECT id FROM utenti WHERE email IN ('info@molisetech.it', 'chiara.marini@email.it', 'direzione@agricolasamnium.it')
-      )
+      );
+
+      DELETE FROM utenti WHERE email IN ('info@molisetech.it', 'chiara.marini@email.it', 'direzione@agricolasamnium.it');
     `);
 
-    // Rimuove gli utenti di test
-    targetDb.run(`
-      DELETE FROM utenti WHERE email IN ('info@molisetech.it', 'chiara.marini@email.it', 'direzione@agricolasamnium.it')
-    `);
-
-    saveDb();
     console.log('[Database] Pulizia completata: nessun dato di prova presente nel database.');
     return { removedAppts: 3, removedUsers: 3 };
   } catch (err) {
@@ -620,78 +614,53 @@ export function purgeSampleTestData(db?: Database): { removedAppts: number; remo
   }
 }
 
-function seedSampleCrmData(db: Database) {
-  // CRITICO: Non inserire MAI dati di prova in produzione (quando si pubblica sul server Ubuntu)
+function seedSampleCrmData(db: Database.Database) {
+  // CRITICO: Non inserire MAI dati di prova in produzione
   if (process.env.NODE_ENV === 'production' || process.env.SEED_SAMPLE_DATA !== 'true') {
     return;
   }
 
-  // Insert initial enterprise user
-  db.run(`
-    INSERT INTO utenti (id, email, telefono, tipo, data_creazione, ultimo_accesso, canale_accesso)
-    VALUES (1, 'info@molisetech.it', '+39 340 1234567', 'IMPRESA', '2026-09-01 10:15:00', '2026-09-01 10:15:00', 'QR Code Campobasso')
-  `);
-  db.run(`
-    INSERT INTO profili_impresa (utente_id, denominazione, partita_iva, nome_referente, cognome_referente, ruolo, comune_sede, ateco_codice, ateco_area, dimensione, fase_vita, grado_innovazione, uso_ai, criticita_rilevate, strumenti_suggeriti)
-    VALUES (1, 'Molise Tech Solutions S.r.l.', '01894560702', 'Giovanni', 'Valente', 'Amministratore', 'Campobasso', '62.01.00', 'ICT', 'Piccola (10-49)', 'In crescita', 4, 3, 'Necessità di reperire sviluppatori specializzati e investire in server GPU', 'Voucher Transizione 5.0 e Smart&Start')
-  `);
-  db.run(`
-    INSERT INTO consensi (utente_id, tipo, accettato, timestamp)
-    VALUES (1, 'PRIVACY', 1, '2026-09-01 10:15:00'), (1, 'NEWSLETTER', 1, '2026-09-01 10:15:00'), (1, 'GEOLOCALIZZAZIONE', 1, '2026-09-01 10:15:00')
-  `);
+  db.exec(`
+    INSERT OR IGNORE INTO utenti (id, email, telefono, tipo, data_creazione, ultimo_accesso, canale_accesso)
+    VALUES (1, 'info@molisetech.it', '+39 340 1234567', 'IMPRESA', '2026-09-01 10:15:00', '2026-09-01 10:15:00', 'QR Code Campobasso');
 
-  // Insert initial aspirante user
-  db.run(`
-    INSERT INTO utenti (id, email, telefono, tipo, data_creazione, ultimo_accesso, canale_accesso)
-    VALUES (2, 'chiara.marini@email.it', '+39 333 9876543', 'ASPIRANTE', '2026-09-01 11:30:00', '2026-09-01 11:30:00', 'Sito Web')
-  `);
-  db.run(`
-    INSERT INTO profili_aspirante (utente_id, nome, cognome, comune_residenza, stato_idea, settore_interesse, condizione_attuale, fascia_eta, ha_partita_iva)
-    VALUES (2, 'Chiara', 'Marini', 'Termoli', 'Ho un progetto scritto', 'Industrie culturali, turistiche e creative', 'Occupato', '30-40', 'No')
-  `);
-  db.run(`
-    INSERT INTO consensi (utente_id, tipo, accettato, timestamp)
-    VALUES (2, 'PRIVACY', 1, '2026-09-01 11:30:00'), (2, 'NEWSLETTER', 1, '2026-09-01 11:30:00')
-  `);
+    INSERT OR IGNORE INTO profili_impresa (utente_id, denominazione, partita_iva, nome_referente, cognome_referente, ruolo, comune_sede, ateco_codice, ateco_area, dimensione, fase_vita, grado_innovazione, uso_ai, criticita_rilevate, strumenti_suggeriti)
+    VALUES (1, 'Molise Tech Solutions S.r.l.', '01894560702', 'Giovanni', 'Valente', 'Amministratore', 'Campobasso', '62.01.00', 'ICT', 'Piccola (10-49)', 'In crescita', 4, 3, 'Necessità di reperire sviluppatori specializzati e investire in server GPU', 'Voucher Transizione 5.0 e Smart&Start');
 
-  // Third user: Agricola Samnium
-  db.run(`
-    INSERT INTO utenti (id, email, telefono, tipo, data_creazione, ultimo_accesso, canale_accesso)
-    VALUES (3, 'direzione@agricolasamnium.it', '+39 328 4455667', 'IMPRESA', '2026-08-25 09:00:00', '2026-08-25 09:00:00', 'Contact Center')
-  `);
-  db.run(`
-    INSERT INTO profili_impresa (utente_id, denominazione, partita_iva, nome_referente, cognome_referente, ruolo, comune_sede, ateco_codice, ateco_area, dimensione, fase_vita, grado_innovazione, uso_ai, criticita_rilevate, strumenti_suggeriti)
-    VALUES (3, 'Azienda Agricola Samnium Bio', '01456780709', 'Antonio', 'D''Amico', 'Titolare', 'Bojano', '01.11.00', 'Agrifood', 'Micro (fino a 9 addetti)', 'Consolidata', 3, 1, 'Costi elevati per certificazione biologica e packaging compostabile', 'Bando Filiere Agrifood')
-  `);
-  db.run(`
-    INSERT INTO consensi (utente_id, tipo, accettato, timestamp)
-    VALUES (3, 'PRIVACY', 1, '2026-08-25 09:00:00')
-  `);
+    INSERT OR IGNORE INTO consensi (utente_id, tipo, accettato, timestamp)
+    VALUES (1, 'PRIVACY', 1, '2026-09-01 10:15:00'), (1, 'NEWSLETTER', 1, '2026-09-01 10:15:00'), (1, 'GEOLOCALIZZAZIONE', 1, '2026-09-01 10:15:00');
 
-  // Insert appointments
-  db.run(`
-    INSERT INTO appuntamenti (codice, utente_id, sportello_id, data_ora, durata_minuti, modalita, videocall_link, stato, motivo_testo, categoria_bisogno, token_modifica, creato_il, note_operatore)
-    VALUES ('SI-2026-000101', 1, 1, '2026-09-07 10:00:00', 30, 'PRESENZA', '', 'CONFERMATO', 'Vorremmo accedere al voucher per la digitalizzazione delle nostre procedure interne e assunzione di 2 programmatori.', 'Bandi e finanziamenti', 'token-abc-101', '2026-09-01 10:15:00', 'Referente molto preparato, portare visura aggiornata.')
-  `);
+    INSERT OR IGNORE INTO utenti (id, email, telefono, tipo, data_creazione, ultimo_accesso, canale_accesso)
+    VALUES (2, 'chiara.marini@email.it', '+39 333 9876543', 'ASPIRANTE', '2026-09-01 11:30:00', '2026-09-01 11:30:00', 'Sito Web');
 
-  db.run(`
-    INSERT INTO appuntamenti (codice, utente_id, sportello_id, data_ora, durata_minuti, modalita, videocall_link, stato, motivo_testo, categoria_bisogno, token_modifica, creato_il, note_operatore)
-    VALUES ('SI-2026-000102', 2, 2, '2026-09-09 10:30:00', 30, 'VIDEOCALL', 'https://meet.jit.si/SportelloImpreseMolise-SI-2026-000102', 'CONFERMATO', 'Progetto di avvio di una guida multimediale ed esperienziale per il turismo dei borghi costieri e dell''entroterra.', 'Avvio di una nuova impresa / apertura Partita IVA', 'token-def-102', '2026-09-01 11:30:00', 'Inviare link videocall')
-  `);
+    INSERT OR IGNORE INTO profili_aspirante (utente_id, nome, cognome, comune_residenza, stato_idea, settore_interesse, condizione_attuale, fascia_eta, ha_partita_iva)
+    VALUES (2, 'Chiara', 'Marini', 'Termoli', 'Ho un progetto scritto', 'Industrie culturali, turistiche e creative', 'Occupato', '30-40', 'No');
 
-  db.run(`
-    INSERT INTO appuntamenti (codice, utente_id, sportello_id, data_ora, durata_minuti, modalita, videocall_link, stato, motivo_testo, categoria_bisogno, token_modifica, creato_il, note_operatore, followup_date, followup_esito)
-    VALUES ('SI-2026-000085', 3, 1, '2026-08-28 09:30:00', 30, 'PRESENZA', '', 'CHIUSO_POSITIVO', 'Consulenza su bandi per transizione green in agricoltura.', 'Innovazione e digitalizzazione', 'token-ghi-085', '2026-08-25 09:00:00', 'Colloquio completato con successo. Ha presentato domanda su bando Agrifood.', '2026-09-28', 'Accesso a bando confermato')
-  `);
+    INSERT OR IGNORE INTO consensi (utente_id, tipo, accettato, timestamp)
+    VALUES (2, 'PRIVACY', 1, '2026-09-01 11:30:00'), (2, 'NEWSLETTER', 1, '2026-09-01 11:30:00');
 
-  // Insert interactions
-  db.run(`
-    INSERT INTO interazioni (utente_id, appuntamento_id, sportello_id, operatore_nome, data_ora, canale, tipologia_richiesta, bandi_trattati, esito, stato_followup, data_prossimo_ricontatto, note)
-    VALUES (3, 3, 1, 'Dott. Marco Rossi', '2026-08-28 10:00:00', 'SPORTELLO', 'Richiesta agevolazioni filiere agroalimentari', 'Bando Sostegno Filiere Agrifood', 'DOMANDA_PRESENTATA', 'COMPLETATO', '2026-09-28', 'Impresa assistita nella predisposizione documentale.')
-  `);
+    INSERT OR IGNORE INTO utenti (id, email, telefono, tipo, data_creazione, ultimo_accesso, canale_accesso)
+    VALUES (3, 'direzione@agricolasamnium.it', '+39 328 4455667', 'IMPRESA', '2026-08-25 09:00:00', '2026-08-25 09:00:00', 'Contact Center');
 
-  db.run(`
-    INSERT INTO interazioni (utente_id, sportello_id, operatore_nome, data_ora, canale, tipologia_richiesta, bandi_trattati, esito, stato_followup, data_prossimo_ricontatto, note)
-    VALUES (2, 2, 'Dott. Paolo Bianchi', '2026-09-01 11:35:00', 'TELEFONO', 'Informazioni preliminari su bando autoimprenditorialità', 'Fondo Nuova Impresa', 'INFORMATIVA_FORNITA', 'PROGRAMMATO', '2026-09-09', 'Chiariti requisiti under 35, confermato appuntamento.')
+    INSERT OR IGNORE INTO profili_impresa (utente_id, denominazione, partita_iva, nome_referente, cognome_referente, ruolo, comune_sede, ateco_codice, ateco_area, dimensione, fase_vita, grado_innovazione, uso_ai, criticita_rilevate, strumenti_suggeriti)
+    VALUES (3, 'Azienda Agricola Samnium Bio', '01456780709', 'Antonio', 'D''Amico', 'Titolare', 'Bojano', '01.11.00', 'Agrifood', 'Micro (fino a 9 addetti)', 'Consolidata', 3, 1, 'Costi elevati per certificazione biologica e packaging compostabile', 'Bando Filiere Agrifood');
+
+    INSERT OR IGNORE INTO consensi (utente_id, tipo, accettato, timestamp)
+    VALUES (3, 'PRIVACY', 1, '2026-08-25 09:00:00');
+
+    INSERT OR IGNORE INTO appuntamenti (codice, utente_id, sportello_id, data_ora, durata_minuti, modalita, videocall_link, stato, motivo_testo, categoria_bisogno, token_modifica, creato_il, note_operatore)
+    VALUES ('SI-2026-000101', 1, 1, '2026-09-07 10:00:00', 30, 'PRESENZA', '', 'CONFERMATO', 'Vorremmo accedere al voucher per la digitalizzazione delle nostre procedure interne e assunzione di 2 programmatori.', 'Bandi e finanziamenti', 'token-abc-101', '2026-09-01 10:15:00', 'Referente molto preparato, portare visura aggiornata.');
+
+    INSERT OR IGNORE INTO appuntamenti (codice, utente_id, sportello_id, data_ora, durata_minuti, modalita, videocall_link, stato, motivo_testo, categoria_bisogno, token_modifica, creato_il, note_operatore)
+    VALUES ('SI-2026-000102', 2, 2, '2026-09-09 10:30:00', 30, 'VIDEOCALL', 'https://meet.jit.si/SportelloImpreseMolise-SI-2026-000102', 'CONFERMATO', 'Progetto di avvio di una guida multimediale ed esperienziale per il turismo dei borghi costieri e dell''entroterra.', 'Avvio di una nuova impresa / apertura Partita IVA', 'token-def-102', '2026-09-01 11:30:00', 'Inviare link videocall');
+
+    INSERT OR IGNORE INTO appuntamenti (codice, utente_id, sportello_id, data_ora, durata_minuti, modalita, videocall_link, stato, motivo_testo, categoria_bisogno, token_modifica, creato_il, note_operatore, followup_date, followup_esito)
+    VALUES ('SI-2026-000085', 3, 1, '2026-08-28 09:30:00', 30, 'PRESENZA', '', 'CHIUSO_POSITIVO', 'Consulenza su bandi per transizione green in agricoltura.', 'Innovazione e digitalizzazione', 'token-ghi-085', '2026-08-25 09:00:00', 'Colloquio completato con successo. Ha presentato domanda su bando Agrifood.', '2026-09-28', 'Accesso a bando confermato');
+
+    INSERT OR IGNORE INTO interazioni (utente_id, appuntamento_id, sportello_id, operatore_nome, data_ora, canale, tipologia_richiesta, bandi_trattati, esito, stato_followup, data_prossimo_ricontatto, note)
+    VALUES (3, 3, 1, 'Dott. Marco Rossi', '2026-08-28 10:00:00', 'SPORTELLO', 'Richiesta agevolazioni filiere agroalimentari', 'Bando Sostegno Filiere Agrifood', 'DOMANDA_PRESENTATA', 'COMPLETATO', '2026-09-28', 'Impresa assistita nella predisposizione documentale.');
+
+    INSERT OR IGNORE INTO interazioni (utente_id, sportello_id, operatore_nome, data_ora, canale, tipologia_richiesta, bandi_trattati, esito, stato_followup, data_prossimo_ricontatto, note)
+    VALUES (2, 2, 'Dott. Paolo Bianchi', '2026-09-01 11:35:00', 'TELEFONO', 'Informazioni preliminari su bando autoimprenditorialità', 'Fondo Nuova Impresa', 'INFORMATIVA_FORNITA', 'PROGRAMMATO', '2026-09-09', 'Chiariti requisiti under 35, confermato appuntamento.');
   `);
 }
