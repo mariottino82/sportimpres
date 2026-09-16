@@ -172,7 +172,7 @@ export const PolicyModal: React.FC<PolicyModalProps> = ({ type: initialType, onC
                   <li>Proporre reclamo al Garante per la Protezione dei Dati Personali (<a href="https://www.garanteprivacy.it" target="_blank" rel="noreferrer" className="text-sky-700 underline font-semibold">www.garanteprivacy.it</a>).</li>
                 </ul>
                 <p className="pt-2 text-[11px] text-slate-500">
-                  Per esercitare i tuoi diritti, puoi inviare una richiesta scritta a: <span className="font-semibold text-slate-700">privacy@sviluppoitaliamolise.it</span> o via PEC.
+                  Per esercitare i tuoi diritti, puoi inviare una richiesta scritta a: <span className="font-semibold text-slate-700">info@sviluppoitaliamolise.it</span> o via PEC.
                 </p>
               </div>
             </>

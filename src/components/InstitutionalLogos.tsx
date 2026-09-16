@@ -308,7 +308,16 @@ export const InstitutionalLogosStrip: React.FC<InstitutionalLogosStripProps> = (
           : 'overflow-x-auto no-scrollbar gap-3 sm:gap-5 py-1'
       } ${className}`}
     >
-      {/* 1. Cofinanziato dall'Unione Europea */}
+      {/* 1. Coesione Italia 21-27 Molise */}
+      <div className="shrink-0 flex items-center">
+        <LogoCoesioneItalia variant={variant} size={size} />
+      </div>
+
+      {showDividers && (
+        <div className={`${dividerHeight} border-r ${dividerClass} shrink-0`} />
+      )}
+
+      {/* 2. Cofinanziato dall'Unione Europea */}
       <div className="shrink-0 flex items-center">
         <LogoUnioneEuropea variant={variant} size={size} />
       </div>
@@ -317,7 +326,7 @@ export const InstitutionalLogosStrip: React.FC<InstitutionalLogosStripProps> = (
         <div className={`${dividerHeight} border-r ${dividerClass} shrink-0`} />
       )}
 
-      {/* 2. Repubblica Italiana */}
+      {/* 3. Repubblica Italiana */}
       <div className="shrink-0 flex items-center">
         <LogoRepubblicaItaliana variant={variant} size={size} />
       </div>
@@ -326,18 +335,9 @@ export const InstitutionalLogosStrip: React.FC<InstitutionalLogosStripProps> = (
         <div className={`${dividerHeight} border-r ${dividerClass} shrink-0`} />
       )}
 
-      {/* 3. Regione Molise */}
+      {/* 4. Regione Molise */}
       <div className="shrink-0 flex items-center">
         <LogoRegioneMolise variant={variant} size={size} />
-      </div>
-
-      {showDividers && (
-        <div className={`${dividerHeight} border-r ${dividerClass} shrink-0`} />
-      )}
-
-      {/* 4. Coesione Italia 21-27 Molise */}
-      <div className="shrink-0 flex items-center">
-        <LogoCoesioneItalia variant={variant} size={size} />
       </div>
 
       {showDividers && (
