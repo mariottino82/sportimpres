@@ -5,6 +5,7 @@ interface LogoProps {
   showSubtitle?: boolean;
   className?: string;
   variant?: 'light' | 'dark';
+  hideText?: boolean;
 }
 
 export const LogoMark: React.FC<{
@@ -70,7 +71,8 @@ export const Logo: React.FC<LogoProps> = ({
   size = 'md',
   showSubtitle = false,
   className = '',
-  variant = 'light'
+  variant = 'light',
+  hideText = false,
 }) => {
   const textSizes = {
     sm: 'text-base',
@@ -86,35 +88,37 @@ export const Logo: React.FC<LogoProps> = ({
       {/* Official 3-Blade Interconnected Twisted Droplets Mark */}
       <LogoMark size={size} />
 
-      <div className="flex flex-col leading-none">
-        <span
-          className={`font-extrabold uppercase tracking-tight font-display ${
-            isDark ? 'text-white' : 'text-slate-800'
-          } ${textSizes[size]}`}
-        >
-          SPORTELLO
-        </span>
-        <span
-          className={`font-black uppercase tracking-tight font-display ${
-            isDark ? 'text-slate-100' : 'text-slate-950'
-          } ${textSizes[size]}`}
-        >
-          IMPRESE
-        </span>
-        {showSubtitle && (
-          <div className="mt-1 flex items-center">
-            <img
-              src="/sviluppo-molise-logo-fb.png"
-              alt="Sviluppo Italia Molise"
-              className={`h-3.5 sm:h-4.5 w-auto object-contain shrink-0 select-none ${
-                isDark ? 'brightness-0 invert opacity-90' : ''
-              }`}
-              loading="lazy"
-              referrerPolicy="no-referrer"
-            />
-          </div>
-        )}
-      </div>
+      {!hideText && (
+        <div className="flex flex-col leading-none">
+          <span
+            className={`font-extrabold uppercase tracking-tight font-display ${
+              isDark ? 'text-white' : 'text-slate-800'
+            } ${textSizes[size]}`}
+          >
+            SPORTELLO
+          </span>
+          <span
+            className={`font-black uppercase tracking-tight font-display ${
+              isDark ? 'text-slate-100' : 'text-slate-950'
+            } ${textSizes[size]}`}
+          >
+            IMPRESE
+          </span>
+          {showSubtitle && (
+            <div className="mt-1 flex items-center">
+              <img
+                src="/sviluppo-molise-logo-fb.png"
+                alt="Sviluppo Italia Molise"
+                className={`h-3.5 sm:h-4.5 w-auto object-contain shrink-0 select-none ${
+                  isDark ? 'brightness-0 invert opacity-90' : ''
+                }`}
+                loading="lazy"
+                referrerPolicy="no-referrer"
+              />
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 };

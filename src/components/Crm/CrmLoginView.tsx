@@ -128,7 +128,7 @@ export const CrmLoginView: React.FC<CrmLoginViewProps> = ({
 
           {/* Institutional Logos header */}
           <div className="flex items-center justify-between pb-4 border-b border-slate-800/80">
-            <Logo size="sm" variant="dark" />
+            <Logo size="sm" variant="dark" hideText />
             <div className="flex items-center gap-2">
               <LogoSviluppoItalia size="xs" variant="dark" />
               <LogoCoesioneItalia size="xs" variant="dark" />
@@ -147,9 +147,7 @@ export const CrmLoginView: React.FC<CrmLoginViewProps> = ({
             <h1 className="text-xl font-black text-white tracking-tight">
               Sportello Imprese Molise
             </h1>
-            <p className="text-xs text-slate-400">
-              Autenticazione richiesta per accedere a cruscotto, agenda appuntamenti e anagrafica 360°.
-            </p>
+            
           </div>
 
           {/* Error Banner */}
