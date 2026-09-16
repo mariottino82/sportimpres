@@ -102,7 +102,7 @@ export const PolicyModal: React.FC<PolicyModalProps> = ({ type: initialType, onC
                   Il Titolare del trattamento è <strong>Sviluppo Italia Molise S.p.A.</strong> (società in house della Regione Molise):
                 </p>
                 <div className="bg-slate-50 p-3.5 rounded-xl border border-slate-200/80 space-y-1 text-[11px] text-slate-700">
-                  <p>• <strong>Sede Legale ed Operativa:</strong> Via Vico 4, 86100 Campobasso (CB)</p>
+                  <p>• <strong>Sede Legale ed Operativa:</strong> Via Nazario Sauro 1, 86100 Campobasso (CB)</p>
                   <p>• <strong>Codice Fiscale / Partita IVA:</strong> 00852240704</p>
                   <p>• <strong>Email Istituzionale:</strong> sportelloimprese@sviluppoitaliamolise.it</p>
                   <p>• <strong>Posta Elettronica Certificata (PEC):</strong> sviluppoitaliamolise@pec.it</p>

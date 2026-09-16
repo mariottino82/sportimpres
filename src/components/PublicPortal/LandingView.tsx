@@ -467,7 +467,7 @@ export const LandingView: React.FC<LandingViewProps> = ({
             <Logo size="md" variant="dark" />
            
             <p className="text-[11px] text-slate-500">
-              Sviluppo Italia Molise S.p.A. - Via Vico 4, 86100 Campobasso (CB) - P.IVA 00852240704
+              Sviluppo Italia Molise S.p.A. - Via Nazario Sauro 1, 86100 Campobasso (CB) - P.IVA 00852240704
             </p>
           </div>
 

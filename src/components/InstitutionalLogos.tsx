@@ -260,11 +260,9 @@ export const LogoCoesioneItalia: React.FC<LogoProps> = ({
       title="Coesione Italia 21-27 Molise"
     >
       <img
-        src="/CoesioneItalia_MOL-Orizz_RGB.png"
+        src={isDark ? '/CoesioneItalia_MOL-Orizz_White.svg' : '/CoesioneItalia_MOL-Orizz_RGB.png'}
         alt="Coesione Italia 21-27 Molise"
-        className={`${sizeClasses[size]} w-auto aspect-[329/126] object-contain shrink-0 select-none ${
-          isDark ? 'brightness-0 invert opacity-95' : ''
-        }`}
+        className={`${sizeClasses[size]} w-auto aspect-[600/230] object-contain shrink-0 select-none`}
         loading="eager"
         referrerPolicy="no-referrer"
       />
