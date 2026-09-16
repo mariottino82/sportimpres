@@ -210,49 +210,70 @@ export const LogoSviluppoItalia: React.FC<LogoProps> = ({
 }) => {
   const isDark = variant === 'dark';
 
-  const textSizes = {
-    xs: { main: 'text-sm', sub: 'text-[9px]' },
-    sm: { main: 'text-base', sub: 'text-[10px]' },
-    md: { main: 'text-xl sm:text-2xl', sub: 'text-xs' },
-    lg: { main: 'text-2xl sm:text-3xl', sub: 'text-sm' },
-    responsive: {
-      main: 'text-[11px] sm:text-lg md:text-2xl',
-      sub: 'text-[7.5px] sm:text-[10px] md:text-xs',
-    },
+  const sizeClasses = {
+    xs: 'h-6 sm:h-7',
+    sm: 'h-7 sm:h-8',
+    md: 'h-8 sm:h-10',
+    lg: 'h-10 sm:h-12',
+    responsive: 'h-5 sm:h-7 md:h-9',
   };
 
   return (
     <div
-      className={`inline-flex flex-col leading-none shrink-0 select-none ${className}`}
+      className={`inline-flex items-center shrink-0 ${className}`}
       title="Sviluppo Italia Molise S.p.A."
     >
-      <div className="flex items-baseline tracking-tight">
-        <span
-          className={`font-serif font-normal ${
-            isDark ? 'text-white' : 'text-slate-900'
-          } ${textSizes[size].main}`}
-        >
-          Sviluppo
-        </span>
-        <span
-          className={`font-serif font-normal text-[#00A0E2] ml-0.5 ${textSizes[size].main}`}
-        >
-          Italia
-        </span>
-      </div>
-      <span
-        className={`font-sans font-medium tracking-normal mt-0.5 ${
-          isDark ? 'text-slate-300' : 'text-slate-800'
-        } ${textSizes[size].sub}`}
-      >
-        Molise
-      </span>
+      <img
+        src="/sviluppo-molise-logo-fb.png"
+        alt="Sviluppo Italia Molise S.p.A."
+        className={`${sizeClasses[size]} w-auto aspect-[600/149] object-contain shrink-0 select-none ${
+          isDark ? 'brightness-0 invert opacity-90' : ''
+        }`}
+        loading="eager"
+        referrerPolicy="no-referrer"
+      />
     </div>
   );
 };
 
 // ==========================================
-// 5. BANNER / STRIP ISTITUZIONALE COMPLETO
+// 5. COESIONE ITALIA 21-27 MOLISE
+// ==========================================
+export const LogoCoesioneItalia: React.FC<LogoProps> = ({
+  className = '',
+  variant = 'light',
+  size = 'md',
+}) => {
+  const isDark = variant === 'dark';
+
+  const sizeClasses = {
+    xs: 'h-6 sm:h-7',
+    sm: 'h-7 sm:h-8',
+    md: 'h-8 sm:h-10',
+    lg: 'h-10 sm:h-12',
+    responsive: 'h-5 sm:h-7 md:h-9',
+  };
+
+  return (
+    <div
+      className={`inline-flex items-center shrink-0 ${className}`}
+      title="Coesione Italia 21-27 Molise"
+    >
+      <img
+        src="/CoesioneItalia_MOL-Orizz_RGB.png"
+        alt="Coesione Italia 21-27 Molise"
+        className={`${sizeClasses[size]} w-auto aspect-[329/126] object-contain shrink-0 select-none ${
+          isDark ? 'brightness-0 invert opacity-95' : ''
+        }`}
+        loading="eager"
+        referrerPolicy="no-referrer"
+      />
+    </div>
+  );
+};
+
+// ==========================================
+// 6. BANNER / STRIP ISTITUZIONALE COMPLETO
 // ==========================================
 interface InstitutionalLogosStripProps {
   className?: string;
@@ -285,8 +306,8 @@ export const InstitutionalLogosStrip: React.FC<InstitutionalLogosStripProps> = (
     <div
       className={`flex items-center flex-nowrap ${
         isResponsive
-          ? 'justify-between sm:justify-start w-full gap-1.5 sm:gap-5 md:gap-6 py-0.5 sm:py-1 overflow-hidden'
-          : 'overflow-x-auto no-scrollbar gap-4 sm:gap-6 py-1'
+          ? 'justify-between sm:justify-start w-full gap-1.5 sm:gap-4 md:gap-5 py-0.5 sm:py-1 overflow-hidden'
+          : 'overflow-x-auto no-scrollbar gap-3 sm:gap-5 py-1'
       } ${className}`}
     >
       {/* 1. Cofinanziato dall'Unione Europea */}
@@ -316,7 +337,16 @@ export const InstitutionalLogosStrip: React.FC<InstitutionalLogosStripProps> = (
         <div className={`${dividerHeight} border-r ${dividerClass} shrink-0`} />
       )}
 
-      {/* 4. Sviluppo Italia Molise */}
+      {/* 4. Coesione Italia 21-27 Molise */}
+      <div className="shrink-0 flex items-center">
+        <LogoCoesioneItalia variant={variant} size={size} />
+      </div>
+
+      {showDividers && (
+        <div className={`${dividerHeight} border-r ${dividerClass} shrink-0`} />
+      )}
+
+      {/* 5. Sviluppo Italia Molise */}
       <div className="shrink-0 flex items-center">
         <LogoSviluppoItalia variant={variant} size={size} />
       </div>

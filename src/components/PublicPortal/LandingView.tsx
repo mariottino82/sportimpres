@@ -14,7 +14,6 @@ import {
   Sparkles,
   MapPin,
   Clock,
-  ShieldCheck,
   Award,
   TrendingUp,
   HelpCircle,
@@ -91,7 +90,7 @@ export const LandingView: React.FC<LandingViewProps> = ({
             {/* Label */}
             <div className="flex items-center gap-1.5 text-slate-400 font-semibold text-[11px] sm:text-xs uppercase tracking-wider">
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
-              <span>Contact Center Regionale</span>
+              <span>Contact Center</span>
             </div>
 
             {/* Action buttons: on mobile two balanced cards, on larger screens clean pills */}
@@ -132,7 +131,7 @@ export const LandingView: React.FC<LandingViewProps> = ({
 
           <div className="hidden md:flex items-center gap-2 text-xs text-slate-400">
             <span className="inline-block w-1.5 h-1.5 rounded-full bg-sky-400/60"></span>
-            <span>Servizio pubblico gratuito • Programma Molise FESR FSE+</span>
+            <span> Programma Molise FESR FSE+</span>
           </div>
         </div>
       </div>
@@ -154,7 +153,7 @@ export const LandingView: React.FC<LandingViewProps> = ({
             </div>
 
             <div className="space-y-2">
-              <Logo size="lg" showSubtitle />
+              <Logo size="lg" />
               <div className="pt-2">
                 <span className="text-sky-600 text-lg sm:text-xl font-bold tracking-wide uppercase block font-display">
                   SUPPORTIAMO
@@ -188,7 +187,7 @@ export const LandingView: React.FC<LandingViewProps> = ({
               </div>
               <div className="flex items-center gap-2 bg-white/80 border border-slate-200/80 px-3 py-2 rounded-xl shadow-2xs">
                 <span className="w-2 h-2 rounded-full bg-amber-500 shrink-0"></span>
-                <span>Favorisce la scoperta imprenditoriale (EDP)</span>
+                <span>Favorisce il processo di scoperta imprenditoriale (EDP)</span>
               </div>
             </div>
 
@@ -202,11 +201,6 @@ export const LandingView: React.FC<LandingViewProps> = ({
                 <span>Prenota un appuntamento</span>
                 <ArrowRight className="w-4 h-4 text-sky-200" />
               </button>
-
-              <div className="inline-flex items-center gap-2 text-xs font-bold text-emerald-800 bg-emerald-100/90 border border-emerald-200/80 px-4 py-3 rounded-xl shadow-2xs">
-                <ShieldCheck className="w-4 h-4 text-emerald-600 shrink-0" />
-                <span>Servizio gratuito in tutti i 136 Comuni</span>
-              </div>
             </div>
 
             <div className="text-xs text-slate-500 flex items-center gap-2 pt-1">
@@ -327,12 +321,6 @@ export const LandingView: React.FC<LandingViewProps> = ({
                       <Phone className="w-4 h-4 text-sky-600 shrink-0" />
                       <span>{selectedSportello.telefono}</span>
                     </div>
-                    {selectedSportello.operatori_assegnati && (
-                      <div className="bg-slate-50 p-2.5 rounded-lg border border-slate-200/80 text-[11px]">
-                        <span className="font-semibold text-slate-900 block">Operatori di riferimento:</span>
-                        <span className="text-slate-600">{selectedSportello.operatori_assegnati}</span>
-                      </div>
-                    )}
                   </div>
                 </div>
 
@@ -477,9 +465,7 @@ export const LandingView: React.FC<LandingViewProps> = ({
         <div className="max-w-7xl mx-auto grid grid-cols-1 md:grid-cols-4 gap-8">
           <div className="space-y-3 md:col-span-2">
             <Logo size="md" variant="dark" />
-            <p className="text-slate-400 text-xs max-w-md leading-relaxed">
-              Iniziativa promossa dall'Assessorato allo Sviluppo Economico della Regione Molise e finanziata dall'Azione 1.4.2 del PR Molise FESR FSE+ 2021-2027 (CUP J19B25000190009).
-            </p>
+           
             <p className="text-[11px] text-slate-500">
               Sviluppo Italia Molise S.p.A. - Via Vico 4, 86100 Campobasso (CB) - P.IVA 00852240704
             </p>
@@ -490,8 +476,8 @@ export const LandingView: React.FC<LandingViewProps> = ({
             <ul className="space-y-2 text-slate-400">
               <li>Contact Center: <a href="tel:0874011011" className="text-white hover:underline">0874 011011</a></li>
               <li>WhatsApp: <a href="https://wa.me/390874011011" className="text-emerald-400 hover:underline">0874 011011</a></li>
-              <li>Email: <a href="mailto:sportelloimprese@sviluppoitaliamolise.it" className="text-sky-400 hover:underline">sportelloimprese@sviluppoitaliamolise.it</a></li>
-              <li>Orari: Lunedì - Venerdì 09:00 - 13:00 / 14:30 - 17:30</li>
+             
+             
             </ul>
           </div>
 
@@ -499,8 +485,8 @@ export const LandingView: React.FC<LandingViewProps> = ({
             <h4 className="text-white font-bold text-xs uppercase tracking-wider mb-3">Link Istituzionali</h4>
             <ul className="space-y-2 text-slate-400">
               <li><a href="https://www.sviluppoitaliamolise.it" target="_blank" rel="noreferrer" className="hover:text-white transition-colors">Sviluppo Italia Molise</a></li>
-              <li><a href="https://www.regione.molise.it" target="_blank" rel="noreferrer" className="hover:text-white transition-colors">Regione Molise</a></li>
-              <li><a href="https://europa.eu" target="_blank" rel="noreferrer" className="hover:text-white transition-colors">Unione Europea - FESR FSE+</a></li>
+              <li><a href="https://prfesrfse2127.regione.molise.it/" target="_blank" rel="noreferrer" className="hover:text-white transition-colors">Regione Molise</a></li>
+              <li><a href="https://europa.eu" target="_blank" rel="noreferrer" className="hover:text-white transition-colors">Unione Europea</a></li>
               <li>
                 <button
                   type="button"

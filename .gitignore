@@ -6,3 +6,10 @@ coverage/
 *.log
 .env*
 !.env.example
+
+# SQLite databases (non sovrascrivere il database presente sul server di produzione)
+*.db
+*.db-journal
+*.sqlite
+*.sqlite3
+sportello.db

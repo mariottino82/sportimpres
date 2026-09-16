@@ -676,7 +676,7 @@ export const BookingWizard: React.FC<BookingWizardProps> = ({
                     required
                     value={anagraficaImpresa.denominazione}
                     onChange={(e) => setAnagraficaImpresa({ ...anagraficaImpresa, denominazione: e.target.value })}
-                    placeholder="es. Molisana Tecnologie S.r.l."
+                    placeholder="Denominazione Impresa"
                     className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-sky-500 focus:outline-none"
                   />
                 </div>
@@ -926,8 +926,7 @@ export const BookingWizard: React.FC<BookingWizardProps> = ({
                   <option value="Bandi e finanziamenti">Bandi e finanziamenti</option>
                   <option value="Avvio di una nuova impresa / apertura Partita IVA">Avvio di una nuova impresa / apertura Partita IVA</option>
                   <option value="Innovazione e digitalizzazione">Innovazione e digitalizzazione</option>
-                  <option value="Accesso al credito">Accesso al credito</option>
-                  <option value="Formazione e competenze">Formazione e competenze</option>
+                 
                   <option value="Partecipazione a eventi, hackathon, consultazioni">Partecipazione a eventi, hackathon, consultazioni</option>
                   <option value="Altro">Altro</option>
                 </select>
@@ -1057,29 +1056,6 @@ export const BookingWizard: React.FC<BookingWizardProps> = ({
                       <option value="Consolidata">Consolidata</option>
                       <option value="In difficoltà / riconversione">In difficoltà / riconversione</option>
                     </select>
-                  </div>
-                </div>
-
-                <div>
-                  <label className="block font-semibold text-slate-700 mb-1">
-                    Quanto è innovativa la sua impresa? (1 a 5 stelle)
-                  </label>
-                  <div className="flex items-center gap-2">
-                    {[1, 2, 3, 4, 5].map((star) => (
-                      <button
-                        type="button"
-                        key={star}
-                        onClick={() => setEdpImpresa({ ...edpImpresa, gradoInnovazione: star })}
-                        className={`text-2xl transition-transform hover:scale-125 ${
-                          star <= edpImpresa.gradoInnovazione ? 'text-amber-400' : 'text-slate-300'
-                        }`}
-                      >
-                        ★
-                      </button>
-                    ))}
-                    <span className="text-xs text-slate-500 ml-2">
-                      {edpImpresa.gradoInnovazione === 5 ? 'Altamente innovativa' : `${edpImpresa.gradoInnovazione} su 5`}
-                    </span>
                   </div>
                 </div>
 

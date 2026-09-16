@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Logo, LogoRegioneMolise, LogoUnioneEuropea, LogoRepubblicaItaliana } from '../Logo';
+import { Logo, LogoRegioneMolise, LogoUnioneEuropea, LogoRepubblicaItaliana, LogoSviluppoItalia, LogoCoesioneItalia } from '../Logo';
 import { CrmOperator } from '../../types';
 import {
   Lock,
@@ -130,6 +130,8 @@ export const CrmLoginView: React.FC<CrmLoginViewProps> = ({
           <div className="flex items-center justify-between pb-4 border-b border-slate-800/80">
             <Logo size="sm" variant="dark" />
             <div className="flex items-center gap-2">
+              <LogoSviluppoItalia size="xs" variant="dark" />
+              <LogoCoesioneItalia size="xs" variant="dark" />
               <LogoRegioneMolise size="xs" variant="dark" />
               <LogoRepubblicaItaliana size="xs" variant="dark" />
               <LogoUnioneEuropea size="xs" variant="dark" />

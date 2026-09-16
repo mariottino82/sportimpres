@@ -102,13 +102,17 @@ export const Logo: React.FC<LogoProps> = ({
           IMPRESE
         </span>
         {showSubtitle && (
-          <span
-            className={`text-xs font-semibold tracking-wider uppercase mt-1 ${
-              isDark ? 'text-sky-300' : 'text-sky-700'
-            }`}
-          >
-            Sviluppo Italia Molise
-          </span>
+          <div className="mt-1 flex items-center">
+            <img
+              src="/sviluppo-molise-logo-fb.png"
+              alt="Sviluppo Italia Molise"
+              className={`h-3.5 sm:h-4.5 w-auto object-contain shrink-0 select-none ${
+                isDark ? 'brightness-0 invert opacity-90' : ''
+              }`}
+              loading="lazy"
+              referrerPolicy="no-referrer"
+            />
+          </div>
         )}
       </div>
     </div>
@@ -119,6 +123,7 @@ export {
   LogoUnioneEuropea,
   LogoRepubblicaItaliana,
   LogoRegioneMolise,
+  LogoCoesioneItalia,
   LogoSviluppoItalia,
   InstitutionalLogosStrip,
   InstitutionalBanner,

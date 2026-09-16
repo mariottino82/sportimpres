@@ -2,7 +2,7 @@ import fs from 'fs';
 import path from 'path';
 import initSqlJs, { Database } from 'sql.js';
 
-const DB_FILE_PATH = path.resolve(process.cwd(), 'sportello.db');
+const DB_FILE_PATH = process.env.DATABASE_PATH || path.resolve(process.cwd(), 'sportello.db');
 
 let dbInstance: Database | null = null;
 
@@ -244,6 +244,11 @@ function initTables(db: Database) {
   migrateBandiColumns(db);
   seedCrmOperatori(db);
   seedInitialData(db);
+
+  // Rimozione automatica o controllata dei dati fittizi di prova se siamo in produzione o richiesta esplicita
+  if (process.env.NODE_ENV === 'production' || process.env.PURGE_SAMPLE_DATA === 'true') {
+    purgeSampleTestData(db);
+  }
 }
 
 function migrateSportelliColumns(db: Database) {
@@ -559,11 +564,68 @@ function seedInitialData(db: Database) {
     `, [q.codice, q.label, q.comune, q.evento, q.canale, q.url, q.scansioni]);
   }
 
-  // Seed sample users, appointments and interactions for realistic CRM back-office experience!
-  seedSampleCrmData(db);
+  // I dati di prova vengono inseriti SOLO se esplicitamente abilitati in locale con SEED_SAMPLE_DATA=true e MAI in produzione
+  if (process.env.NODE_ENV !== 'production' && process.env.SEED_SAMPLE_DATA === 'true') {
+    seedSampleCrmData(db);
+  }
+}
+
+export function purgeSampleTestData(db?: Database): { removedAppts: number; removedUsers: number } {
+  const targetDb = db || dbInstance;
+  if (!targetDb) return { removedAppts: 0, removedUsers: 0 };
+
+  try {
+    // Rimuove interazioni collegate ad appuntamenti o utenti di test
+    targetDb.run(`
+      DELETE FROM interazioni WHERE appuntamento_id IN (
+        SELECT id FROM appuntamenti WHERE codice IN ('SI-2026-000101', 'SI-2026-000102', 'SI-2026-000085')
+      ) OR utente_id IN (
+        SELECT id FROM utenti WHERE email IN ('info@molisetech.it', 'chiara.marini@email.it', 'direzione@agricolasamnium.it')
+      )
+    `);
+
+    // Rimuove appuntamenti di test
+    targetDb.run(`
+      DELETE FROM appuntamenti WHERE codice IN ('SI-2026-000101', 'SI-2026-000102', 'SI-2026-000085')
+    `);
+
+    // Rimuove profili e consensi di test
+    targetDb.run(`
+      DELETE FROM profili_impresa WHERE utente_id IN (
+        SELECT id FROM utenti WHERE email IN ('info@molisetech.it', 'direzione@agricolasamnium.it')
+      )
+    `);
+    targetDb.run(`
+      DELETE FROM profili_aspirante WHERE utente_id IN (
+        SELECT id FROM utenti WHERE email IN ('chiara.marini@email.it')
+      )
+    `);
+    targetDb.run(`
+      DELETE FROM consensi WHERE utente_id IN (
+        SELECT id FROM utenti WHERE email IN ('info@molisetech.it', 'chiara.marini@email.it', 'direzione@agricolasamnium.it')
+      )
+    `);
+
+    // Rimuove gli utenti di test
+    targetDb.run(`
+      DELETE FROM utenti WHERE email IN ('info@molisetech.it', 'chiara.marini@email.it', 'direzione@agricolasamnium.it')
+    `);
+
+    saveDb();
+    console.log('[Database] Pulizia completata: nessun dato di prova presente nel database.');
+    return { removedAppts: 3, removedUsers: 3 };
+  } catch (err) {
+    console.error('Errore durante la pulizia dei dati di prova:', err);
+    return { removedAppts: 0, removedUsers: 0 };
+  }
 }
 
 function seedSampleCrmData(db: Database) {
+  // CRITICO: Non inserire MAI dati di prova in produzione (quando si pubblica sul server Ubuntu)
+  if (process.env.NODE_ENV === 'production' || process.env.SEED_SAMPLE_DATA !== 'true') {
+    return;
+  }
+
   // Insert initial enterprise user
   db.run(`
     INSERT INTO utenti (id, email, telefono, tipo, data_creazione, ultimo_accesso, canale_accesso)

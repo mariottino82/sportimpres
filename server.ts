@@ -2,7 +2,7 @@ import express from 'express';
 import path from 'path';
 import crypto from 'crypto';
 import { createServer as createViteServer } from 'vite';
-import { getDb, queryAll, queryOne, run } from './server/db.js';
+import { getDb, queryAll, queryOne, run, purgeSampleTestData } from './server/db.js';
 import { matchBandiForProfile } from './server/gemini.js';
 import { sendAppointmentConfirmationEmail } from './server/emailService.js';
 
@@ -1979,6 +1979,16 @@ app.get('/api/crm/cruscotto', (req, res) => {
       todayTomorrowAppts,
       todayAppts: todayTomorrowAppts
     });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Endpoint manutenzione CRM: rimozione sicura dei dati di prova dal database
+app.post('/api/crm/maintenance/purge-test-data', (req, res) => {
+  try {
+    const result = purgeSampleTestData();
+    res.json({ success: true, message: 'Dati di prova rimossi con successo dal database SQLite.', ...result });
   } catch (err: any) {
     res.status(500).json({ error: err.message });
   }
