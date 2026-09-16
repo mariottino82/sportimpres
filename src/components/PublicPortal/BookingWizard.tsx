@@ -448,7 +448,7 @@ export const BookingWizard: React.FC<BookingWizardProps> = ({
         
         {/* Wizard Header */}
         <div className="flex items-center justify-between border-b border-slate-200 pb-4 mb-6">
-          <Logo size="sm" showSubtitle />
+          <Logo size="sm" />
           <button
             onClick={onCancel}
             className="text-xs font-semibold text-slate-500 hover:text-slate-800 transition-colors"
@@ -562,7 +562,7 @@ export const BookingWizard: React.FC<BookingWizardProps> = ({
                 1. Titolare del Trattamento
               </p>
               <p>
-                Il Titolare del trattamento è <strong>Sviluppo Italia Molise S.p.A.</strong> (P.IVA 00852240704), con sede in Via Vico 4, 86100 Campobasso (CB). Email: privacy@sviluppoitaliamolise.it.
+                Il Titolare del trattamento è <strong>Sviluppo Italia Molise S.p.A.</strong> (P.IVA 00852240704), con sede in Via Nazario Sauro, 1 - 86100 Campobasso (CB). Email: privacy@sviluppoitaliamolise.it.
               </p>
               <p className="font-semibold text-slate-800">
                 2. Finalità del Trattamento
@@ -581,6 +581,12 @@ export const BookingWizard: React.FC<BookingWizardProps> = ({
               </p>
               <p>
                 In qualsiasi momento l'utente può esercitare i diritti di accesso, rettifica, cancellazione (oblio), limitazione e opposizione al trattamento inviando una comunicazione al Titolare.
+              </p>
+               <p className="font-semibold text-slate-800">
+                5. Responsabile del Trattamento dei Dati
+              </p>
+              <p>
+                Il responsabilde del trattamento dei dati è Cube Solution Service
               </p>
             </div>
 
