@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { UserType, Appointment, Interaction } from '../../types';
+import { UserType, Appointment, Interaction, CrmRole } from '../../types';
 import {
   X,
   Building2,
@@ -23,6 +23,7 @@ import {
 
 interface Scheda360ModalProps {
   userId: number;
+  role?: CrmRole;
   onClose: () => void;
   onUpdated?: () => void;
   onNavigateToBandi?: (user?: any) => void;
@@ -49,6 +50,7 @@ const formatSafeDateTime = (val?: any): string => {
 
 export const Scheda360Modal: React.FC<Scheda360ModalProps> = ({
   userId,
+  role,
   onClose,
   onUpdated,
   onNavigateToBandi
@@ -57,6 +59,8 @@ export const Scheda360Modal: React.FC<Scheda360ModalProps> = ({
   const [loading, setLoading] = useState(true);
   const [savingPostColloquio, setSavingPostColloquio] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
+
+  const canDelete = !role || role === 'ADMIN' || role === 'COORDINATORE';
 
   // Action modals
   const [showAnonymizeConfirm, setShowAnonymizeConfirm] = useState(false);
@@ -286,24 +290,28 @@ export const Scheda360Modal: React.FC<Scheda360ModalProps> = ({
                   <Download className="w-3 h-3" />
                   <span>Esporta Dati JSON (GDPR)</span>
                 </button>
-                <button
-                  type="button"
-                  onClick={() => setShowAnonymizeConfirm(true)}
-                  className="px-2.5 py-1 rounded bg-amber-50 border border-amber-200 hover:bg-amber-100 text-amber-800 font-semibold flex items-center gap-1 cursor-pointer"
-                  title="Rimuove i dati identificativi personali mantenendo i dati aggregati per statistiche"
-                >
-                  <AlertCircle className="w-3 h-3" />
-                  <span>Anonimizza (GDPR)</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setShowDeleteConfirm(true)}
-                  className="px-2.5 py-1 rounded bg-rose-50 border border-rose-200 hover:bg-rose-100 text-rose-700 font-semibold flex items-center gap-1 cursor-pointer"
-                  title="Elimina definitivamente l'utente e tutti i record collegati dal database SQL"
-                >
-                  <Trash2 className="w-3 h-3" />
-                  <span>Elimina dal Database SQL</span>
-                </button>
+                {canDelete && (
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => setShowAnonymizeConfirm(true)}
+                      className="px-2.5 py-1 rounded bg-amber-50 border border-amber-200 hover:bg-amber-100 text-amber-800 font-semibold flex items-center gap-1 cursor-pointer"
+                      title="Rimuove i dati identificativi personali mantenendo i dati aggregati per statistiche"
+                    >
+                      <AlertCircle className="w-3 h-3" />
+                      <span>Anonimizza (GDPR)</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setShowDeleteConfirm(true)}
+                      className="px-2.5 py-1 rounded bg-rose-50 border border-rose-200 hover:bg-rose-100 text-rose-700 font-semibold flex items-center gap-1 cursor-pointer"
+                      title="Elimina definitivamente l'utente e tutti i record collegati dal database SQL"
+                    >
+                      <Trash2 className="w-3 h-3" />
+                      <span>Elimina dal Database SQL</span>
+                    </button>
+                  </>
+                )}
               </div>
             </div>
           </div>
