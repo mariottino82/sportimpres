@@ -76,8 +76,8 @@ export const BookingWizard: React.FC<BookingWizardProps> = ({
 
   // Privacy consents (S2)
   const [privacyConsent, setPrivacyConsent] = useState(false);
-  const [newsletterConsent, setNewsletterConsent] = useState(true);
-  const [geoConsent, setGeoConsent] = useState(true);
+  const [newsletterConsent, setNewsletterConsent] = useState(false);
+  const [geoConsent, setGeoConsent] = useState(false);
 
   // Anagrafica (S3)
   const [anagraficaImpresa, setAnagraficaImpresa] = useState({
@@ -680,31 +680,7 @@ export const BookingWizard: React.FC<BookingWizardProps> = ({
                   className="mt-0.5 w-4 h-4 rounded text-sky-600 focus:ring-sky-500 border-slate-300"
                 />
                 <span className="text-xs text-slate-800 font-medium">
-                  <strong>* Obbligatorio:</strong> Dichiaro di aver letto e accetto l'informativa sulla privacy per l'erogazione del servizio di appuntamento e orientamento.
-                </span>
-              </label>
-
-              <label className="flex items-start gap-3 cursor-pointer select-none">
-                <input
-                  type="checkbox"
-                  checked={newsletterConsent}
-                  onChange={(e) => setNewsletterConsent(e.target.checked)}
-                  className="mt-0.5 w-4 h-4 rounded text-sky-600 focus:ring-sky-500 border-slate-300"
-                />
-                <span className="text-xs text-slate-600">
-                  Facoltativo: Desidero ricevere aggiornamenti, inviti ad eventi territoriali e la newsletter mensile sui nuovi bandi regionali.
-                </span>
-              </label>
-
-              <label className="flex items-start gap-3 cursor-pointer select-none">
-                <input
-                  type="checkbox"
-                  checked={geoConsent}
-                  onChange={(e) => setGeoConsent(e.target.checked)}
-                  className="mt-0.5 w-4 h-4 rounded text-sky-600 focus:ring-sky-500 border-slate-300"
-                />
-                <span className="text-xs text-slate-600">
-                  Facoltativo: Acconsento alla geolocalizzazione approssimata del dispositivo per calcolare lo sportello più vicino.
+                  <strong>* Obbligatorio:</strong> Dichiaro di aver preso visione dell'informativa sulla privacy per l'erogazione del servizio di appuntamento e orientamento.
                 </span>
               </label>
             </div>
