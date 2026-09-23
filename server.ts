@@ -1,10 +1,20 @@
-import express from 'express';
+import dotenv from 'dotenv';
 import path from 'path';
+
+// Carica variabili d'ambiente da .env all'avvio (sia in dev che in produzione su Ubuntu)
+dotenv.config();
+try {
+  dotenv.config({ path: path.resolve(process.cwd(), '.env') });
+} catch {
+  // Ignora se inaccessibile
+}
+
+import express from 'express';
 import crypto from 'crypto';
 import { createServer as createViteServer } from 'vite';
 import { getDb, queryAll, queryOne, run, purgeSampleTestData } from './server/db.js';
 import { matchBandiForProfile } from './server/gemini.js';
-import { sendAppointmentConfirmationEmail } from './server/emailService.js';
+import { sendAppointmentConfirmationEmail, verifySmtpConnection, sendTestEmail } from './server/emailService.js';
 
 const app = express();
 const PORT = 3000;
@@ -701,6 +711,34 @@ app.post('/api/prenotazioni/:tokenOrCode/rinvia-email', async (req, res) => {
       simulated: mailResult.simulated,
       messaggio: mailResult.success ? `Email inviata con successo a ${destEmail}` : `Errore durante l'invio: ${mailResult.error}`
     });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ----------------------------------------------------
+// SMTP DIAGNOSTICS & TEST ENDPOINTS
+// ----------------------------------------------------
+
+// Verifica lo stato del server SMTP e la connessione (TLS handshake e login)
+app.get('/api/smtp/status', async (req, res) => {
+  try {
+    const status = await verifySmtpConnection();
+    res.json(status);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Invia un'email di test a qualsiasi indirizzo specificato
+app.post('/api/smtp/test', async (req, res) => {
+  try {
+    const { email } = req.body;
+    if (!email || typeof email !== 'string' || !email.includes('@')) {
+      return res.status(400).json({ error: 'Indirizzo email di destinazione non valido' });
+    }
+    const result = await sendTestEmail(email.trim());
+    res.json(result);
   } catch (err: any) {
     res.status(500).json({ error: err.message });
   }

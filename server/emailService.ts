@@ -1,5 +1,15 @@
 import nodemailer from 'nodemailer';
 import type { Transporter } from 'nodemailer';
+import dotenv from 'dotenv';
+import path from 'path';
+
+// Assicura il caricamento delle variabili d'ambiente da .env sia in sviluppo che in produzione
+dotenv.config();
+try {
+  dotenv.config({ path: path.resolve(process.cwd(), '.env') });
+} catch {
+  // Ignora se inaccessibile
+}
 
 export interface AppointmentEmailParams {
   to: string;
@@ -21,14 +31,24 @@ export interface AppointmentEmailParams {
 
 let transporter: Transporter | null = null;
 
-export function getEmailTransporter(): Transporter | null {
-  if (transporter) return transporter;
+export function getEmailTransporter(forceReload = false): Transporter | null {
+  if (transporter && !forceReload) return transporter;
 
-  const host = process.env.SMTP_HOST;
-  const port = parseInt(process.env.SMTP_PORT || '587', 10);
-  const secure = process.env.SMTP_SECURE === 'true' || port === 465;
-  const user = process.env.SMTP_USER;
-  const pass = process.env.SMTP_PASS;
+  if (forceReload) {
+    try {
+      dotenv.config({ path: path.resolve(process.cwd(), '.env'), override: true });
+    } catch {
+      // Ignora
+    }
+  }
+
+  const host = process.env.SMTP_HOST?.trim();
+  const port = parseInt(process.env.SMTP_PORT?.trim() || '465', 10);
+  const secure = process.env.SMTP_SECURE !== undefined
+    ? process.env.SMTP_SECURE.trim() === 'true'
+    : port === 465;
+  const user = process.env.SMTP_USER?.trim();
+  const pass = process.env.SMTP_PASS?.trim();
 
   if (host && user && pass) {
     transporter = nodemailer.createTransport({
@@ -39,13 +59,18 @@ export function getEmailTransporter(): Transporter | null {
         user,
         pass,
       },
+      connectionTimeout: 8000,
+      greetingTimeout: 8000,
+      socketTimeout: 10000,
       tls: {
-        rejectUnauthorized: false // Permette server con certificati intermedi o custom
+        rejectUnauthorized: false, // Permette server con certificati intermedi o custom
+        minVersion: 'TLSv1.2'
       }
     });
-    console.log(`[EMAIL SERVICE] Inizializzato trasporto SMTP verso ${host}:${port} (Utente: ${user})`);
+    console.log(`[EMAIL SERVICE] Inizializzato trasporto SMTP verso ${host}:${port} (SSL/TLS: ${secure}, Utente: ${user})`);
   } else {
-    console.warn('[EMAIL SERVICE] SMTP non configurato nel file .env (mancano SMTP_HOST, SMTP_USER, SMTP_PASS). Verrà generata simulazione con log.');
+    transporter = null;
+    console.warn(`[EMAIL SERVICE AVVISO] SMTP non configurato nel file .env (HOST: ${host || 'MANCANTE'}, PORT: ${port}, USER: ${user || 'MANCANTE'}, PASS: ${pass ? 'PRESENTE' : 'MANCANTE'}). Le email verranno simulate.`);
   }
 
   return transporter;
@@ -386,11 +411,136 @@ PR Molise FESR FSE+ 2021-2027
     }
   } else {
     // Simulazione di invio (quando SMTP non è ancora stato configurato nel file .env)
-    console.log(`[EMAIL SERVICE SIMULATA] Email preparata per invio a: ${params.to} | Codice: ${params.codice} | Data: ${params.datetime}`);
+    const host = process.env.SMTP_HOST?.trim();
+    const user = process.env.SMTP_USER?.trim();
+    const pass = process.env.SMTP_PASS?.trim();
+    console.warn(`[EMAIL SERVICE SIMULATA] Invio saltato - Configurazione SMTP non completa in .env (HOST: ${host ? 'OK' : 'MANCANTE'}, USER: ${user ? 'OK' : 'MANCANTE'}, PASS: ${pass ? 'PRESENTE' : 'MANCANTE'}). Destinatario: ${params.to}`);
     return {
-      success: true,
+      success: false,
       simulated: true,
+      error: 'SMTP non configurato sul server. Verifica i parametri SMTP_HOST, SMTP_USER, SMTP_PASS nel file .env',
       messageId: `simulated-${Date.now()}`
     };
+  }
+}
+
+/**
+ * Verifica la connessione al server SMTP (handshake TLS e credenziali)
+ */
+export async function verifySmtpConnection(): Promise<{
+  configured: boolean;
+  success: boolean;
+  host?: string;
+  port?: number;
+  secure?: boolean;
+  user?: string;
+  from?: { name: string; address: string };
+  replyTo?: { name: string; address: string };
+  error?: string;
+}> {
+  const mailTransporter = getEmailTransporter(true);
+  const host = process.env.SMTP_HOST?.trim();
+  const port = parseInt(process.env.SMTP_PORT?.trim() || '465', 10);
+  const secure = process.env.SMTP_SECURE !== undefined
+    ? process.env.SMTP_SECURE.trim() === 'true'
+    : port === 465;
+  const user = process.env.SMTP_USER?.trim();
+  const sender = resolveFromSender();
+  const replyTo = resolveReplyTo();
+
+  if (!mailTransporter || !host || !user) {
+    return {
+      configured: false,
+      success: false,
+      host: host || 'Non impostato',
+      port,
+      secure,
+      user: user || 'Non impostato',
+      from: sender,
+      replyTo,
+      error: 'Parametri SMTP_HOST, SMTP_USER o SMTP_PASS mancanti o non letti dal file .env'
+    };
+  }
+
+  try {
+    await mailTransporter.verify();
+    return {
+      configured: true,
+      success: true,
+      host,
+      port,
+      secure,
+      user,
+      from: sender,
+      replyTo
+    };
+  } catch (err: any) {
+    console.error('[EMAIL SERVICE] Errore verifica connessione SMTP:', err.message);
+    return {
+      configured: true,
+      success: false,
+      host,
+      port,
+      secure,
+      user,
+      from: sender,
+      replyTo,
+      error: err.message || String(err)
+    };
+  }
+}
+
+/**
+ * Invia un'email di test per diagnosticare la configurazione SMTP
+ */
+export async function sendTestEmail(toEmail: string): Promise<{ success: boolean; messageId?: string; error?: string }> {
+  const mailTransporter = getEmailTransporter(true);
+  if (!mailTransporter) {
+    return {
+      success: false,
+      error: 'SMTP non configurato. Verifica SMTP_HOST, SMTP_USER e SMTP_PASS nel file .env'
+    };
+  }
+
+  const sender = resolveFromSender();
+  const replyTo = resolveReplyTo();
+
+  try {
+    const info = await mailTransporter.sendMail({
+      from: {
+        name: sender.name,
+        address: sender.address
+      },
+      replyTo: {
+        name: replyTo.name,
+        address: replyTo.address
+      },
+      to: toEmail,
+      subject: 'Test Connessione Email - Sportello Imprese Molise',
+      text: `Test di invio email completato con successo da Sportello Imprese Molise.\n\nInviato da: ${sender.name} <${sender.address}>\nReply-To: ${replyTo.name} <${replyTo.address}>\nData: ${new Date().toLocaleString('it-IT')}`,
+      html: `
+        <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 600px; margin: 0 auto; padding: 24px; background-color: #ffffff; border: 1px solid #e2e8f0; border-radius: 12px;">
+          <h2 style="color: #0284c7; margin-top: 0;">Test Connessione Email</h2>
+          <p style="color: #334155; font-size: 14px; line-height: 1.5;">
+            Questa è un'email di prova inviata dal server <strong>Sportello Imprese Molise</strong> per verificare che la configurazione SMTP funzioni correttamente.
+          </p>
+          <div style="background-color: #f8fafc; border-left: 4px solid #0284c7; padding: 14px 16px; margin: 20px 0; border-radius: 6px;">
+            <p style="margin: 4px 0; font-size: 13px; color: #1e293b;"><strong>Mittente (From):</strong> ${sender.name} &lt;${sender.address}&gt;</p>
+            <p style="margin: 4px 0; font-size: 13px; color: #1e293b;"><strong>Rispondi a (Reply-To):</strong> ${replyTo.name} &lt;${replyTo.address}&gt;</p>
+            <p style="margin: 4px 0; font-size: 13px; color: #1e293b;"><strong>Destinatario:</strong> ${toEmail}</p>
+            <p style="margin: 4px 0; font-size: 13px; color: #1e293b;"><strong>Data:</strong> ${new Date().toLocaleString('it-IT')}</p>
+          </div>
+          <p style="color: #16a34a; font-weight: bold; font-size: 14px;">
+            ✓ La configurazione SMTP è operativa e funzionante!
+          </p>
+        </div>
+      `
+    });
+
+    console.log(`[EMAIL TEST] Email di prova inviata con successo a ${toEmail}. MessageId: ${info.messageId}`);
+    return { success: true, messageId: info.messageId };
+  } catch (err: any) {
+    console.error(`[EMAIL TEST ERROR] Errore invio test email a ${toEmail}:`, err);
+    return { success: false, error: err.message || String(err) };
   }
 }
