@@ -81,99 +81,154 @@ export const PolicyModal: React.FC<PolicyModalProps> = ({ type: initialType, onC
         <div className="p-5 sm:p-7 overflow-y-auto space-y-6 text-xs text-slate-600 leading-relaxed">
           {activeTab === 'privacy' ? (
             <>
-              {/* Privacy Summary Banner */}
-              <div className="bg-sky-50/80 border border-sky-200 rounded-xl p-4 flex items-start gap-3">
-                <Info className="w-5 h-5 text-sky-700 shrink-0 mt-0.5" />
-                <div className="text-xs text-sky-900 leading-relaxed">
-                  <p className="font-bold mb-1">Trattamento dati nell'ambito del PR Molise FESR FSE+ 2021-2027</p>
-                  <p>
-                    La presente informativa descrive le modalità di gestione dei dati personali degli utenti (aspiranti imprenditori, imprese costituite, professionisti) che utilizzano il portale <strong>Sportello Imprese</strong> per la prenotazione di appuntamenti territoriali, videocall e supporto specialistico all'autoimprenditorialità (EDP - Azione 1.4.2).
-                  </p>
-                </div>
+              {/* Premessa */}
+              <div className="bg-sky-50/90 border border-sky-200 rounded-xl p-4 text-xs text-sky-950 leading-relaxed font-medium">
+                Sviluppo Italia Molise SpA, Le fornisce, di seguito, le informazioni che descrivono il trattamento dei dati personali effettuato e i diritti di cui Lei gode, in qualità di interessato.
               </div>
 
-              {/* Section 1: Titolare */}
+              {/* Titolare del trattamento */}
               <div className="space-y-2">
                 <h4 className="font-bold text-sm text-slate-900 flex items-center gap-2">
                   <Building2 className="w-4 h-4 text-sky-600" />
-                  <span>1. Titolare del Trattamento e Dati di Contatto</span>
+                  <span>Titolare del trattamento</span>
                 </h4>
-                <p>
-                  Il Titolare del trattamento è <strong>Sviluppo Italia Molise S.p.A.</strong> (società in house della Regione Molise):
+                <p className="text-slate-700">
+                  Il titolare del trattamento è <strong>Sviluppo Italia Molise S.p.A.</strong>, P.Iva e C.F.: 00852240704, con sede legale in Campobasso, alla via Nazario Sauro n. 1, tel. 0874 4011200, e-mail: <a href="mailto:info@sviluppoitaliamolise.it" className="text-sky-700 font-semibold underline">info@sviluppoitaliamolise.it</a>, PEC: <a href="mailto:sviluppoitaliamolise@legalmail.it" className="text-sky-700 font-semibold underline">sviluppoitaliamolise@legalmail.it</a>, sito internet: <a href="https://www.sviluppoitaliamolise.com" target="_blank" rel="noreferrer" className="text-sky-700 font-semibold underline">https://www.sviluppoitaliamolise.com</a>.
                 </p>
-                <div className="bg-slate-50 p-3.5 rounded-xl border border-slate-200/80 space-y-1 text-[11px] text-slate-700">
-                  <p>• <strong>Sede Legale ed Operativa:</strong> Via Nazario Sauro 1, 86100 Campobasso (CB)</p>
-                  <p>• <strong>Codice Fiscale / Partita IVA:</strong> 00852240704</p>
-                  <p>• <strong>Email Istituzionale:</strong> sportelloimprese@sviluppoitaliamolise.it</p>
-                  <p>• <strong>Posta Elettronica Certificata (PEC):</strong> sviluppoitaliamolise@pec.it</p>
-                  <p>• <strong>Responsabile della Protezione Dati (DPO):</strong> dpo@sviluppoitaliamolise.it</p>
-                </div>
               </div>
 
-              {/* Section 2: Categorie di dati */}
+              {/* Responsabile della protezione dei dati */}
+              <div className="space-y-2">
+                <h4 className="font-bold text-sm text-slate-900 flex items-center gap-2">
+                  <ShieldCheck className="w-4 h-4 text-sky-600" />
+                  <span>Responsabile della protezione dei dati</span>
+                </h4>
+                <p className="text-slate-700">
+                  Il Responsabile per la protezione dei dati (RPD/DPO) designato dal Titolare, al quale Lei potrà rivolgersi, è la <strong>Slalom Consulting srl</strong>, al seguente indirizzo di posta elettronica: <a href="mailto:dpo@slalomsrl.it" className="text-sky-700 font-semibold underline">dpo@slalomsrl.it</a>.
+                </p>
+              </div>
+
+              {/* Tipologia dei dati raccolti e Categorie di interessati */}
               <div className="space-y-2">
                 <h4 className="font-bold text-sm text-slate-900 flex items-center gap-2">
                   <FileText className="w-4 h-4 text-sky-600" />
-                  <span>2. Tipologie di Dati Personali Trattati</span>
+                  <span>Tipologia dei dati raccolti e Categorie di interessati</span>
                 </h4>
-                <p>I dati trattati attraverso il portale comprendono:</p>
-                <ul className="list-disc pl-5 space-y-1 text-slate-700">
-                  <li><strong>Dati anagrafici e di contatto:</strong> nome, cognome, indirizzo email, recapito telefonico, codice fiscale, comune di residenza/domicilio.</li>
-                  <li><strong>Dati d'impresa (per le imprese costituite):</strong> ragione sociale, Partita IVA, codice ATECO, settore economico, dimensione aziendale e sede legale/operativa.</li>
-                  <li><strong>Dati di prenotazione e servizio:</strong> sede dello sportello prescelto, data e orario dell'appuntamento, modalità prescelta (in presenza o videocall remota), argomento di consulenza (Bandi regionali, EDP, creazione d'impresa, FSE+).</li>
-                  <li><strong>Dati tecnici e di sessione:</strong> indirizzo IP, log tecnici di accesso temporanei per prevenire abusi e garantire la sicurezza delle prenotazioni.</li>
-                </ul>
+                <p className="text-slate-700">
+                  Il titolare del trattamento tratta i dati anagrafici (nome e cognome), la fascia di età, stato occupazionale, carica/ruolo ricoperta, la comune di residenza, i dati di contatto (nr. di telefono, indirizzo e-mail, etc.), appartenenti ai cittadini e ai rappresentanti legali/referenti di imprese.
+                </p>
               </div>
 
-              {/* Section 3: Finalità e base giuridica */}
+              {/* Finalità e Base giuridica del trattamento */}
               <div className="space-y-2">
                 <h4 className="font-bold text-sm text-slate-900 flex items-center gap-2">
                   <Lock className="w-4 h-4 text-sky-600" />
-                  <span>3. Finalità del Trattamento e Basi Giuridiche</span>
+                  <span>Finalità e Base giuridica del trattamento</span>
                 </h4>
-                <div className="space-y-2.5">
-                  <div className="p-3 bg-slate-50 rounded-xl border border-slate-200">
-                    <p className="font-bold text-slate-900 mb-1">A. Erogazione del servizio di orientamento e gestione appuntamenti</p>
-                    <p className="text-slate-600 text-[11px]">
-                      Pianificazione, conferma, promemoria via email/telefono e svolgimento dei colloqui specialistici presso gli 11 sportelli territoriali o la sede centrale.
-                      <br /><em>Base giuridica: Esecuzione di misure precontrattuali e adempimento della richiesta dell'interessato (art. 6, par. 1, lett. b GDPR).</em>
-                    </p>
-                  </div>
-                  <div className="p-3 bg-slate-50 rounded-xl border border-slate-200">
-                    <p className="font-bold text-slate-900 mb-1">B. Rendicontazione istituzionale PR Molise FESR FSE+ 2021-2027</p>
-                    <p className="text-slate-600 text-[11px]">
-                      Monitoraggio degli indicatori di output del progetto per conto della Regione Molise e dell'Autorità di Gestione dei Fondi Europei (Azione 1.4.2, CUP J19B25000190009).
-                      <br /><em>Base giuridica: Esecuzione di un compito di interesse pubblico e adempimento di obblighi legali (art. 6, par. 1, lett. c ed e GDPR).</em>
-                    </p>
-                  </div>
-                </div>
+                <p className="text-slate-700">
+                  I dati da Lei forniti, e/o forniti, saranno trattati per la seguente finalità: svolgimento del servizio di consulenza realizzata attraverso lo “Sportello imprese”, allo scopo di rendere informazioni puntuali e affidabili circa le opportunità di finanziamento e le relative modalità di accesso: gestione dell'appuntamento, l'erogazione del servizio di orientamento e supporto imprenditoriale (EDP), l'invio del promemoria di conferma e delle comunicazioni istituzionali inerenti i bandi del PR Molise FESR FSE+ 2021-2027.
+                </p>
+                <p className="text-slate-700 font-medium pt-1">
+                  La base giuridica che legittima il trattamento è rappresentata:
+                </p>
+                <ul className="list-disc pl-5 space-y-1.5 text-slate-700">
+                  <li>dall’art. 6, par. 1, b) del GDPR: <em>“il trattamento è necessario all’esecuzione di un contratto di cui l’interessato è parte o all’esecuzione di misure precontrattuali adottate su richiesta dello stesso”</em>;</li>
+                  <li>dall’art. 6, par. 1, lett. e) del GDPR: <em>“il trattamento è necessario per l’esecuzione di un compito di interesse pubblico o connesso all’esercizio di pubblici poteri di cui è investito il titolare del trattamento”</em>.</li>
+                </ul>
               </div>
 
-              {/* Section 4: Conservazione e Sicurezza */}
+              {/* Modalità di trattamento dei dati */}
               <div className="space-y-2">
-                <h4 className="font-bold text-sm text-slate-900">4. Misure di Sicurezza e Conservazione dei Dati</h4>
-                <p>
-                  Tutti i dati personali sono custoditi in database protetti con crittografia in transito (HTTPS/TLS) e a riposo. I dati vengono conservati per il tempo strettamente necessario all'esecuzione del servizio e agli obblighi previsti dai regolamenti comunitari sui fondi strutturali (periodo di conservazione della documentazione di progetto FESR/FSE+).
+                <h4 className="font-bold text-sm text-slate-900">Modalità di trattamento dei dati</h4>
+                <p className="text-slate-700">
+                  I dati personali sono trattati per le finalità esposte, nel rispetto dei principi di cui all’art. 5 del GDPR: “liceità, correttezza, trasparenza, limitazione delle finalità e del periodo di conservazione, minimizzazione dei dati, esattezza, integrità e riservatezza” in forma cartacea ed informatizzata. La disponibilità, la gestione, l’accesso, la conservazione e la fruibilità dei dati è garantita dall’adozione di misure tecniche e organizzative per assicurare adeguati livelli di sicurezza ai sensi degli artt. 25 e 32 del GDPR.
                 </p>
               </div>
 
-              {/* Section 5: Diritti dell'Interessato */}
+              {/* Processi decisionali automatizzati */}
+              <div className="space-y-2">
+                <h4 className="font-bold text-sm text-slate-900">Processi decisionali automatizzati</h4>
+                <p className="text-slate-700">
+                  Il Titolare non effettua trattamenti di dati personali degli interessati che consistano in processi decisionali automatizzati, compresa la profilazione, che producono effetti giuridici che lo riguardano o che incidono in modo analogo significativamente sulla sua persona.
+                </p>
+              </div>
+
+              {/* Natura del conferimento dei dati */}
+              <div className="space-y-2">
+                <h4 className="font-bold text-sm text-slate-900">Natura del conferimento dei dati</h4>
+                <p className="text-slate-700">
+                  Il conferimento dei dati personali è necessario e l’eventuale rifiuto di fornirli, in tutto o in parte, potrebbe dar luogo all'impossibilità per Sviluppo Italia Molise S.p.A. di rendere il servizio richiesto.
+                </p>
+              </div>
+
+              {/* Destinatari o categorie di destinatari dei dati personali */}
+              <div className="space-y-2">
+                <h4 className="font-bold text-sm text-slate-900">Destinatari o categorie di destinatari dei dati personali</h4>
+                <p className="text-slate-700">
+                  Per le finalità sopra richiamate, i Dati Personali potranno essere utilizzati e comunicati in modo adeguato e corretto a soggetti esterni all’organizzazione del Titolare. A tal fine, nello svolgimento della propria attività, il Titolare potrebbe comunicare i Dati Personali:
+                </p>
+                <ul className="list-disc pl-5 space-y-1.5 text-slate-700">
+                  <li>personale debitamente istruito ed autorizzato dal Titolare che agisce sotto l’autorità del medesimo;</li>
+                  <li>persone fisiche e/o giuridiche, quali Responsabili al trattamento di Dati Personali ex artt. 28 e 29 GDPR che trattano Dati per conto del Titolare, in rapporto contrattuale o convenzionale con il medesimo idoneamente designati e selezionati, altresì, per le garanzie prestate in materia di protezione dei Dati Personali, ciascuno nei limiti della propria professione e delle funzioni assegnate, ovvero tecnici e addetti alla comunicazione. Tra i soggetti che agiranno come responsabili del trattamento si richiama la ditta esterna che si occupa dell’erogazione del servizio tramite il presidio fisico presso lo sportello e della fornitura della piattaforma informativa di rete CMR.</li>
+                </ul>
+              </div>
+
+              {/* Diffusione e Trasferimento dei dati all’estero */}
+              <div className="space-y-2">
+                <h4 className="font-bold text-sm text-slate-900">Diffusione e Trasferimento dei dati all’estero</h4>
+                <p className="text-slate-700">
+                  I Dati Personali non saranno oggetto di diffusione e non sono trasferiti in paesi extra-UE.
+                </p>
+              </div>
+
+              {/* Periodo di conservazione dei dati */}
+              <div className="space-y-2">
+                <h4 className="font-bold text-sm text-slate-900">Periodo di conservazione dei dati</h4>
+                <p className="text-slate-700">
+                  Il Titolare del trattamento, una volta perseguita la finalità sopra indicata, conserva i dati personali per un periodo di 5 anni, nel rispetto degli obblighi di conservazione e dei limiti previsti dalla Legge.
+                </p>
+              </div>
+
+              {/* Diritti dell’interessato */}
               <div className="space-y-2">
                 <h4 className="font-bold text-sm text-slate-900 flex items-center gap-2">
                   <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-                  <span>5. Diritti dell'Interessato (Artt. 15-22 GDPR)</span>
+                  <span>Diritti dell’interessato</span>
                 </h4>
-                <p>In conformità con il Regolamento UE 2016/679, hai il diritto in qualsiasi momento di:</p>
-                <ul className="list-disc pl-5 space-y-1 text-slate-700">
-                  <li>Ottenere la conferma dell'esistenza dei tuoi dati e averne accesso;</li>
-                  <li>Richiedere la rettifica, l'integrazione o l'aggiornamento dei dati inesatti;</li>
-                  <li>Richiedere la cancellazione (diritto all'oblio) o la trasformazione in forma anonima qualora non sussistano obblighi legali di conservazione;</li>
-                  <li>Limitare il trattamento o opporti allo stesso per motivi legittimi;</li>
-                  <li>Proporre reclamo al Garante per la Protezione dei Dati Personali (<a href="https://www.garanteprivacy.it" target="_blank" rel="noreferrer" className="text-sky-700 underline font-semibold">www.garanteprivacy.it</a>).</li>
-                </ul>
-                <p className="pt-2 text-[11px] text-slate-500">
-                  Per esercitare i tuoi diritti, puoi inviare una richiesta scritta a: <span className="font-semibold text-slate-700">info@sviluppoitaliamolise.it</span> o via PEC.
+                <p className="text-slate-700">
+                  In merito al trattamento dei dati personali Lei, in qualità di Interessato, potrà esercitare, laddove applicabili e/o tecnicamente possibili, i diritti previsti dagli artt.15-21 del Reg. UE 2016/679, quali quelli di: accesso, rettifica, opposizione, etc.
                 </p>
+                <p className="text-slate-700 font-medium pt-1">
+                  Per l’esercizio dei diritti, è possibile rivolgersi al Titolare del trattamento con le seguenti modalità:
+                </p>
+                <ul className="list-disc pl-5 space-y-1 text-slate-700">
+                  <li>raccomandata A/R all’indirizzo sopra riportato;</li>
+                  <li>PEC: <a href="mailto:sviluppoitaliamolise@legalmail.it" className="text-sky-700 font-semibold underline">sviluppoitaliamolise@legalmail.it</a></li>
+                </ul>
+                <p className="text-slate-700 font-medium pt-1">
+                  ovvero al RPD/DPO (Responsabile della Protezione dei dati), rintracciabile ai seguenti contatti:
+                </p>
+                <ul className="list-disc pl-5 space-y-1 text-slate-700">
+                  <li>E-mail: <a href="mailto:dpo@slalomsrl.it" className="text-sky-700 font-semibold underline">dpo@slalomsrl.it</a></li>
+                </ul>
+                <p className="text-slate-700 pt-1">
+                  In particolare, Lei potrà esercitare i Suoi diritti specificando l’oggetto della Sua richiesta, il diritto che intende esercitare ed allegando la fotocopia di un documento di identità che attesti la legittimità della richiesta.
+                </p>
+              </div>
+
+              {/* Diritto di reclamo */}
+              <div className="space-y-2">
+                <h4 className="font-bold text-sm text-slate-900 flex items-center gap-2">
+                  <Info className="w-4 h-4 text-amber-600" />
+                  <span>Diritto di reclamo</span>
+                </h4>
+                <p className="text-slate-700 font-medium">
+                  L’interessato, ricorrendone i presupposti ha, altresì, il diritto di:
+                </p>
+                <ul className="list-disc pl-5 space-y-1 text-slate-700">
+                  <li>proporre reclamo all’Autorità di controllo dello stato di residenza (ex art. 77 Reg. n. 679/2016), secondo le procedure previste dall’art. 142 del D.lgs. n. 196/2003, emendato dal D.lgs. n. 101/2018;</li>
+                  <li>rivolgere una segnalazione all’Autorità di controllo ex art. 144 D.lgs. n. 101/2018.</li>
+                </ul>
               </div>
             </>
           ) : (

@@ -87,13 +87,90 @@ function generateIcsCalendar(params: AppointmentEmailParams): string {
 }
 
 /**
+ * Risolve la configurazione corretta del mittente (Alias + Indirizzo) evitando caratteri di escape malformati
+ */
+export interface SenderConfig {
+  name: string;
+  address: string;
+}
+
+export function resolveFromSender(): SenderConfig {
+  const defaultName = 'Sportello Imprese Molise';
+  const defaultEmail = 'sportelloimprese@sviluppoitaliamolise.it';
+
+  const configuredName = (process.env.SMTP_FROM_NAME || '').trim();
+  let rawFrom = (process.env.SMTP_FROM || '').trim();
+  rawFrom = rawFrom.replace(/^["'\s]+|["'\s]+$/g, '');
+
+  let name = configuredName || defaultName;
+  let address = (process.env.SMTP_FROM_EMAIL || '').trim();
+
+  if (rawFrom) {
+    const angleMatch = rawFrom.match(/^(.*?)[<]([^>]+)[>]$/);
+    if (angleMatch) {
+      const extractedName = angleMatch[1].replace(/\\/g, '').replace(/^["'\s]+|["'\s]+$/g, '').trim();
+      const extractedEmail = angleMatch[2].trim();
+      if (extractedName && !configuredName) {
+        name = extractedName;
+      }
+      if (extractedEmail) {
+        address = extractedEmail;
+      }
+    } else if (rawFrom.includes('@')) {
+      address = rawFrom.replace(/["'\\]/g, '').trim();
+    }
+  }
+
+  // Se non è stato specificato un indirizzo mittente, usa l'utente SMTP se è un'email valida, altrimenti l'indirizzo istituzionale
+  if (!address) {
+    const smtpUser = (process.env.SMTP_USER || '').trim();
+    if (smtpUser && smtpUser.includes('@')) {
+      address = smtpUser;
+    } else {
+      address = defaultEmail;
+    }
+  }
+
+  // Pulisce il nome da virgolette o barre inverse residue
+  name = name.replace(/\\/g, '').replace(/^["'\s]+|["'\s]+$/g, '').trim() || defaultName;
+
+  return { name, address };
+}
+
+export function resolveReplyTo(params?: AppointmentEmailParams): SenderConfig {
+  const defaultName = 'Sportello Imprese Molise';
+  const defaultEmail = params?.sportelloEmail || 'sportelloimprese@sviluppoitaliamolise.it';
+
+  let rawReplyTo = (process.env.SMTP_REPLY_TO || '').trim();
+  rawReplyTo = rawReplyTo.replace(/^["'\s]+|["'\s]+$/g, '');
+
+  if (rawReplyTo) {
+    const angleMatch = rawReplyTo.match(/^(.*?)[<]([^>]+)[>]$/);
+    if (angleMatch) {
+      const extractedName = angleMatch[1].replace(/\\/g, '').replace(/^["'\s]+|["'\s]+$/g, '').trim() || defaultName;
+      const extractedEmail = angleMatch[2].trim();
+      return { name: extractedName, address: extractedEmail };
+    }
+    if (rawReplyTo.includes('@')) {
+      return { name: defaultName, address: rawReplyTo.replace(/["'\\]/g, '').trim() };
+    }
+  }
+
+  return {
+    name: params?.sportelloNome ? `Sportello Imprese Molise - ${params.sportelloComune}` : defaultName,
+    address: defaultEmail
+  };
+}
+
+/**
  * Invia email di conferma appuntamento
  */
 export async function sendAppointmentConfirmationEmail(
   params: AppointmentEmailParams
 ): Promise<{ success: boolean; messageId?: string; simulated?: boolean; error?: string }> {
   const mailTransporter = getEmailTransporter();
-  const fromAddress = process.env.SMTP_FROM || '"Sportello Imprese Molise" <sportelloimprese@sviluppoitaliamolise.it>';
+  const sender = resolveFromSender();
+  const replyTo = resolveReplyTo(params);
 
   // Formattazione data leggibile in italiano
   const dateObj = new Date(params.datetime.replace(' ', 'T'));
@@ -280,7 +357,14 @@ PR Molise FESR FSE+ 2021-2027
   if (mailTransporter) {
     try {
       const info = await mailTransporter.sendMail({
-        from: fromAddress,
+        from: {
+          name: sender.name,
+          address: sender.address
+        },
+        replyTo: {
+          name: replyTo.name,
+          address: replyTo.address
+        },
         to: params.to,
         subject: `Conferma Appuntamento #${params.codice} - Sportello Imprese Molise`,
         text: textContent,
@@ -294,7 +378,7 @@ PR Molise FESR FSE+ 2021-2027
         ]
       });
 
-      console.log(`[EMAIL SERVICE] Email di conferma inviata con successo a ${params.to}. MessageId: ${info.messageId}`);
+      console.log(`[EMAIL SERVICE] Email di conferma inviata con successo da "${sender.name}" <${sender.address}> (Reply-To: "${replyTo.name}" <${replyTo.address}>) a ${params.to}. MessageId: ${info.messageId}`);
       return { success: true, messageId: info.messageId };
     } catch (err: any) {
       console.error(`[EMAIL SERVICE] Errore nell'invio email a ${params.to}:`, err.message);
