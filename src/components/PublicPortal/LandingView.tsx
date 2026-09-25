@@ -139,7 +139,7 @@ export const LandingView: React.FC<LandingViewProps> = ({
     <div className="flex flex-col min-h-screen bg-slate-50 text-slate-900 pb-24 md:pb-0">
       {/* 1. Contact Center Hotline Bar */}
       <div
-        id="contatti"
+        
         className="border-b border-slate-700 px-4 sm:px-6 py-2"
         style={{ background: 'linear-gradient(90deg,#1b2537,#223047)' }}
       >
@@ -479,19 +479,9 @@ export const LandingView: React.FC<LandingViewProps> = ({
       <section id="news" className="py-12 px-4 sm:px-6 max-w-7xl mx-auto w-full">
         <div className="flex flex-col md:flex-row md:items-end justify-between mb-6 gap-4">
           <div>
-            <div className="inline-flex items-center gap-2 text-xs font-bold text-sky-700 uppercase tracking-wider mb-1">
+            <div className="inline-flex items-center gap-1.5 text-xs font-bold text-sky-700 uppercase tracking-wider mb-1">
               <Newspaper className="w-4 h-4" />
               <span>News ed Eventi</span>
-              {onOpenCrmEventi && (
-                <button
-                  type="button"
-                  onClick={onOpenCrmEventi}
-                  className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-amber-100 hover:bg-amber-200 text-amber-900 border border-amber-300 font-bold text-[10px] transition-colors cursor-pointer"
-                  title="Gestisci i dati di questa sezione dall'Area Riservata CRM"
-                >
-                  <span>⚙️ Gestisci da Area Riservata</span>
-                </button>
-              )}
             </div>
             <h2 className="text-2xl sm:text-3xl font-extrabold text-slate-950 font-display">
               Prossimi appuntamenti
@@ -870,8 +860,8 @@ export const LandingView: React.FC<LandingViewProps> = ({
         </div>
       </section>
 
-      {/* 6. CTA FINALE */}
-      <section className="px-4 sm:px-6 pb-12">
+      {/* 6. CTA FINALE & CONTATTI */}
+      <section id="contatti" className="px-4 sm:px-6 pb-12 scroll-mt-28">
         <div className="max-w-7xl mx-auto rounded-2xl bg-gradient-to-r from-slate-900 to-slate-950 border border-slate-800 p-5 sm:p-8 grid grid-cols-1 lg:grid-cols-2 gap-5 items-center">
           <div>
             <h2 className="font-display font-extrabold text-white text-xl sm:text-2xl">Pronto a partire?</h2>
