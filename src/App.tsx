@@ -145,16 +145,6 @@ export default function App() {
               </nav>
             )}
 
-            {/* In booking mode, show quick return logo */}
-            {mode === 'booking' && (
-              <div
-                onClick={() => setMode('public')}
-                className="cursor-pointer hover:opacity-95 transition-opacity shrink-0"
-              >
-                <Logo size="sm" />
-              </div>
-            )}
-
             {/* Navigation Actions */}
             <div className="flex items-center gap-1.5 sm:gap-3 shrink-0">
               {/* Mobile News Jump Button */}
@@ -266,7 +256,7 @@ export default function App() {
 
       {/* 4. Public Footer (Rendered in Public & Booking modes) */}
       {mode !== 'admin' && (
-        <footer className="bg-slate-950 text-slate-400 text-xs border-t border-slate-900">
+        <footer className="bg-slate-950 text-slate-400 text-xs border-t border-slate-900 pb-20 md:pb-0">
           {/* Bottom Bar with Official Institutional Logos */}
           <div className="bg-slate-950 py-6 px-4 sm:px-6">
             <div className="max-w-7xl mx-auto flex flex-col md:flex-row items-center justify-between gap-6">
@@ -276,30 +266,32 @@ export default function App() {
                 </span>
                 <InstitutionalLogosStrip variant="dark" size="xs" />
               </div>
-              <div className="flex flex-col items-start md:items-end text-[11px] text-slate-400 gap-1">
-                <p>© {new Date().getFullYear()} Regione Molise • Sviluppo Italia Molise S.p.A.</p>
-                <div className="flex flex-wrap items-center gap-2 text-[10px] text-slate-500">
-                  <span>PR Molise FESR FSE+ 2021-2027</span>
-                  <span>•</span>
-                  <button
-                    type="button"
-                    onClick={() => setPolicyModalType('privacy')}
-                    className="hover:text-slate-300 transition-colors cursor-pointer"
-                  >
-                    Privacy Policy
-                  </button>
-                  <span>•</span>
-                  <button
-                    type="button"
-                    onClick={() => setPolicyModalType('cookies')}
-                    className="hover:text-slate-300 transition-colors cursor-pointer"
-                  >
-                    Cookie Policy
-                  </button>
-                  <span>•</span>
-                  <span>CUP J19B25000190009</span>
+              {mode === 'booking' && (
+                <div className="flex flex-col items-start md:items-end text-[11px] text-slate-400 gap-1">
+                  <p>© {new Date().getFullYear()} Regione Molise • Sviluppo Italia Molise S.p.A.</p>
+                  <div className="flex flex-wrap items-center gap-2 text-[10px] text-slate-500">
+                    <span>PR Molise FESR FSE+ 2021-2027</span>
+                    <span>•</span>
+                    <button
+                      type="button"
+                      onClick={() => setPolicyModalType('privacy')}
+                      className="hover:text-slate-300 transition-colors cursor-pointer"
+                    >
+                      Privacy Policy
+                    </button>
+                    <span>•</span>
+                    <button
+                      type="button"
+                      onClick={() => setPolicyModalType('cookies')}
+                      className="hover:text-slate-300 transition-colors cursor-pointer"
+                    >
+                      Cookie Policy
+                    </button>
+                    <span>•</span>
+                    <span>CUP J19B25000190009</span>
+                  </div>
                 </div>
-              </div>
+              )}
             </div>
           </div>
         </footer>
