@@ -117,7 +117,7 @@ export const BookingWizard: React.FC<BookingWizardProps> = ({
     statoIdea: 'Ho un progetto scritto',
     settoreInteresse: 'ICT',
     condizioneAttuale: 'Occupato',
-    fasciaEta: '30-40',
+    fasciaEta: '> 35 anni',
     haPartitaIva: 'No'
   });
 
@@ -552,7 +552,7 @@ export const BookingWizard: React.FC<BookingWizardProps> = ({
                 Privacy e Protezione dei Dati (GDPR)
               </h2>
               <p className="text-xs text-slate-600">
-                Ai sensi degli articoli 13 e 14 del Regolamento UE 2016/679 (GDPR).
+                Ai sensi degli articoli 13 del Regolamento UE 2016/679 (GDPR).
               </p>
             </div>
 

@@ -337,11 +337,11 @@ export async function sendAppointmentConfirmationEmail(
                 Sviluppo Italia Molise S.p.A.
               </p>
               <p style="margin:0 0 8px 0;">
-                Sede Centrale: Via Vico, 4 - 86100 Campobasso (CB) • P.IVA 00852240704 • Tel. 0874 011011<br>
-                Email: sportelloimprese@sviluppoitaliamolise.it
+                Sede Centrale: Via Nazario Sauro, 1 - 86100 Campobasso (CB) • P.IVA 00852240704 • Tel. 0874 011011<br>
+                Email: info@sviluppoitaliamolise.eu
               </p>
               <p style="margin:0; font-size:10px; color:#94a3b8;">
-                Ricevi questa comunicazione perché hai inoltrato una richiesta di appuntamento tramite la rete degli 11 Sportelli Imprese Molise. Informativa Privacy resa ai sensi dell'art. 13 del Regolamento UE 2016/679 (GDPR).
+                Ricevi questa comunicazione perché hai inoltrato una richiesta di appuntamento tramite la rete degli 12 Sportelli Imprese Molise. Informativa Privacy resa ai sensi dell'art. 13 del Regolamento UE 2016/679 (GDPR).
               </p>
             </td>
           </tr>

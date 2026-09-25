@@ -238,12 +238,29 @@ function initTables(db: Database.Database) {
       ultimo_accesso TEXT DEFAULT NULL,
       note TEXT DEFAULT ''
     );
+
+    CREATE TABLE IF NOT EXISTS eventi (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      data TEXT NOT NULL,
+      tipo TEXT NOT NULL CHECK(tipo IN ('EVENTO', 'WORKSHOP', 'BANDO')),
+      titolo TEXT NOT NULL,
+      testo TEXT NOT NULL,
+      luogo TEXT DEFAULT '',
+      ora TEXT DEFAULT '',
+      nota TEXT DEFAULT '',
+      bottone TEXT DEFAULT 'Scopri',
+      link TEXT DEFAULT '',
+      manifesto_url TEXT DEFAULT '',
+      attivo INTEGER DEFAULT 1,
+      creato_il TEXT NOT NULL
+    );
   `);
 
   migrateSportelliColumns(db);
   migrateBandiColumns(db);
   seedCrmOperatori(db);
   seedInitialData(db);
+  seedEventi(db);
 
   // Rimozione controllata dei dati fittizi di prova in produzione
   if (process.env.NODE_ENV === 'production' || process.env.PURGE_SAMPLE_DATA === 'true') {
@@ -664,3 +681,57 @@ function seedSampleCrmData(db: Database.Database) {
     VALUES (2, 2, 'Dott. Paolo Bianchi', '2026-09-01 11:35:00', 'TELEFONO', 'Informazioni preliminari su bando autoimprenditorialità', 'Fondo Nuova Impresa', 'INFORMATIVA_FORNITA', 'PROGRAMMATO', '2026-09-09', 'Chiariti requisiti under 35, confermato appuntamento.');
   `);
 }
+
+function seedEventi(db: Database.Database) {
+  try {
+    const check = db.prepare("SELECT COUNT(*) as count FROM eventi").get() as { count: number } | undefined;
+    if (check && check.count > 0) return;
+
+    const stmt = db.prepare(`
+      INSERT INTO eventi (data, tipo, titolo, testo, luogo, ora, nota, bottone, link, manifesto_url, attivo, creato_il)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, datetime('now'))
+    `);
+
+    stmt.run(
+      '2026-09-28',
+      'EVENTO',
+      'Inaugurazione Sportello Imprese – Sede di Trivento',
+      'Inaugurazione della nuova sede di Trivento presso il Centro Polifunzionale Comunale, Sala consiliare C.so G. Marconi.',
+      'Trivento',
+      '18:00',
+      'Lunedì 28 settembre',
+      'Vedi manifesto',
+      '',
+      'manifesto_trivento'
+    );
+
+    stmt.run(
+      '2026-10-15',
+      'WORKSHOP',
+      'Workshop di esempio: dall\'idea al business plan',
+      'Laboratorio pratico per aspiranti imprenditori, in presenza e online.',
+      'Termoli + online',
+      '15:00',
+      'Gratuito',
+      'Iscriviti',
+      '#',
+      ''
+    );
+
+    stmt.run(
+      '2026-10-22',
+      'BANDO',
+      'News di esempio: apertura avviso agevolazioni',
+      'Sintesi della notizia con scadenze principali e requisiti.',
+      '',
+      '',
+      'Serve aiuto?',
+      'Prenota consulenza',
+      '#sportelli',
+      ''
+    );
+  } catch (err) {
+    console.error('Error seeding eventi:', err);
+  }
+}
+

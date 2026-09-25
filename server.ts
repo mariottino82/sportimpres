@@ -212,6 +212,127 @@ app.delete('/api/sportelli/:id', (req, res) => {
   }
 });
 
+// ----------------------------------------------------
+// PUBLIC & CRM API: EVENTI & NEWS (PROSSIMI APPUNTAMENTI)
+// ----------------------------------------------------
+
+app.get('/api/eventi', (req, res) => {
+  try {
+    const includeInactive = req.query.all === 'true';
+    const rows = queryAll(
+      includeInactive
+        ? 'SELECT * FROM eventi ORDER BY data ASC'
+        : 'SELECT * FROM eventi WHERE attivo = 1 ORDER BY data ASC'
+    );
+    res.json(rows);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/eventi', (req, res) => {
+  try {
+    const {
+      data,
+      tipo = 'EVENTO',
+      titolo,
+      testo,
+      luogo = '',
+      ora = '',
+      nota = '',
+      bottone = 'Scopri',
+      link = '',
+      manifesto_url = '',
+      attivo = 1
+    } = req.body;
+
+    if (!data || !titolo || !testo) {
+      return res.status(400).json({ error: 'Data, Titolo e Testo sono obbligatori' });
+    }
+
+    const result = run(`
+      INSERT INTO eventi (data, tipo, titolo, testo, luogo, ora, nota, bottone, link, manifesto_url, attivo, creato_il)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
+    `, [
+      data,
+      tipo,
+      titolo,
+      testo,
+      luogo,
+      ora,
+      nota,
+      bottone,
+      link,
+      manifesto_url,
+      attivo ? 1 : 0
+    ]);
+
+    const created = queryOne('SELECT * FROM eventi WHERE id = ?', [result.lastInsertRowid]);
+    res.status(201).json(created);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.put('/api/eventi/:id', (req, res) => {
+  try {
+    const { id } = req.params;
+    const existing = queryOne('SELECT * FROM eventi WHERE id = ?', [id]);
+    if (!existing) return res.status(404).json({ error: 'Evento non trovato' });
+
+    const {
+      data = existing.data,
+      tipo = existing.tipo,
+      titolo = existing.titolo,
+      testo = existing.testo,
+      luogo = existing.luogo,
+      ora = existing.ora,
+      nota = existing.nota,
+      bottone = existing.bottone,
+      link = existing.link,
+      manifesto_url = existing.manifesto_url,
+      attivo = existing.attivo
+    } = req.body;
+
+    run(`
+      UPDATE eventi SET
+        data = ?, tipo = ?, titolo = ?, testo = ?,
+        luogo = ?, ora = ?, nota = ?, bottone = ?,
+        link = ?, manifesto_url = ?, attivo = ?
+      WHERE id = ?
+    `, [
+      data,
+      tipo,
+      titolo,
+      testo,
+      luogo,
+      ora,
+      nota,
+      bottone,
+      link,
+      manifesto_url,
+      attivo ? 1 : 0,
+      id
+    ]);
+
+    const updated = queryOne('SELECT * FROM eventi WHERE id = ?', [id]);
+    res.json(updated);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.delete('/api/eventi/:id', (req, res) => {
+  try {
+    const { id } = req.params;
+    run('DELETE FROM eventi WHERE id = ?', [id]);
+    res.json({ success: true, message: 'Evento eliminato con successo' });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+
 // Calculate available 30-min slots for a sportello on a given date (YYYY-MM-DD)
 app.get('/api/sportelli/:id/slots', (req, res) => {
   try {
@@ -1398,6 +1519,29 @@ app.get('/api/crm/interazioni', (req, res) => {
 
     sql += ' ORDER BY i.data_ora DESC';
     const rows = queryAll(sql, params);
+    res.json(rows);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get('/api/crm/ricontatti', (req, res) => {
+  try {
+    const sql = `
+      SELECT i.*, s.nome as sportello_nome, s.comune as sportello_comune,
+             u.email as utente_email, u.telefono as utente_telefono, u.tipo as utente_tipo,
+             pi.denominazione as impresa_denominazione,
+             pa.nome as aspirante_nome, pa.cognome as aspirante_cognome
+      FROM interazioni i
+      JOIN sportelli s ON i.sportello_id = s.id
+      JOIN utenti u ON i.utente_id = u.id
+      LEFT JOIN profili_impresa pi ON u.id = pi.utente_id
+      LEFT JOIN profili_aspirante pa ON u.id = pa.utente_id
+      WHERE (i.data_prossimo_ricontatto IS NOT NULL AND i.data_prossimo_ricontatto != '' AND i.stato_followup != 'COMPLETATO')
+         OR i.stato_followup = 'PROGRAMMATO'
+      ORDER BY i.data_prossimo_ricontatto ASC, i.data_ora DESC
+    `;
+    const rows = queryAll(sql);
     res.json(rows);
   } catch (err: any) {
     res.status(500).json({ error: err.message });

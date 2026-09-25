@@ -1,144 +1,175 @@
-import React from 'react';
-import { Sportello } from '../types';
-import { MapPin, Navigation } from 'lucide-react';
+import React, { useEffect, useRef } from 'react';
+import L from 'leaflet';
+import { MOLISE_COORDS, MOLISE_RILIEVO_BOUNDS } from '../data/moliseGeo';
+import { SPORTELLI_LIST, AREE, nomeBreve, SportelloInfo } from '../data/sportelliList';
 
 interface MoliseMapProps {
-  sportelli: Sportello[];
-  selectedSportelloId?: number | null;
-  userCoords?: { lat: number; lng: number } | null;
-  onSelectSportello: (sportello: Sportello) => void;
-  className?: string;
+  selectedSportello: SportelloInfo;
+  filtroArea: string;
+  onSelectSportello: (sportello: SportelloInfo) => void;
+}
+
+const LBL_POS: Record<string, string> = {
+  Isernia: 'r',
+  Fornelli: 'l',
+};
+
+function getMarkerLabel(nome: string) {
+  const n = nomeBreve(nome);
+  const p = LBL_POS[n] || 'b';
+  const st = 'font-size="12.5" font-weight="700" fill="#1e293b" stroke="#ffffff" stroke-width="4" stroke-linejoin="round" style="paint-order:stroke"';
+  if (p === 'r') return `<text x="17" y="4.5" text-anchor="start" ${st}>${n}</text>`;
+  if (p === 'l') return `<text x="-17" y="4.5" text-anchor="end" ${st}>${n}</text>`;
+  return `<text y="27" text-anchor="middle" ${st}>${n}</text>`;
 }
 
 export const MoliseMap: React.FC<MoliseMapProps> = ({
-  sportelli,
-  selectedSportelloId,
-  userCoords,
+  selectedSportello,
+  filtroArea,
   onSelectSportello,
-  className = ''
 }) => {
-  // Molise geographic bounds: Lat ~ 41.35 to 42.15, Long ~ 13.95 to 15.15
-  const minLat = 41.35;
-  const maxLat = 42.15;
-  const minLng = 13.95;
-  const maxLng = 15.15;
+  const mapContainerRef = useRef<HTMLDivElement>(null);
+  const mapInstanceRef = useRef<L.Map | null>(null);
+  const markersGroupRef = useRef<L.LayerGroup | null>(null);
+  const tipRef = useRef<HTMLDivElement>(null);
 
-  const projectToPercent = (lat: number, lng: number) => {
-    // x: longitude left to right
-    const x = ((lng - minLng) / (maxLng - minLng)) * 100;
-    // y: latitude top (high lat) to bottom (low lat)
-    const y = ((maxLat - lat) / (maxLat - minLat)) * 100;
-    return {
-      x: Math.max(5, Math.min(95, x)),
-      y: Math.max(5, Math.min(95, y))
+  useEffect(() => {
+    if (!mapContainerRef.current || mapInstanceRef.current) return;
+
+    const map = L.map(mapContainerRef.current, {
+      zoomControl: true,
+      scrollWheelZoom: false,
+      attributionControl: false,
+      minZoom: 8,
+      maxZoom: 12,
+      zoomSnap: 0.25,
+    });
+
+    // Background polygon for non-Molise area masking
+    const worldMask: [number, number][] = [
+      [60, -10],
+      [60, 40],
+      [25, 40],
+      [25, -10],
+    ];
+    L.polygon([worldMask, MOLISE_COORDS], {
+      stroke: false,
+      fillColor: '#f1f5f9',
+      fillOpacity: 0.85,
+      interactive: false,
+    }).addTo(map);
+
+    // Molise boundary outline
+    const reg = L.polygon(MOLISE_COORDS, {
+      color: '#0284c7',
+      weight: 2.5,
+      opacity: 0.85,
+      fill: true,
+      fillColor: '#e0f2fe',
+      fillOpacity: 0.35,
+      interactive: false,
+    }).addTo(map);
+
+    const bounds = reg.getBounds();
+    map.fitBounds(bounds, { padding: [18, 18] });
+    map.setMaxBounds(MOLISE_RILIEVO_BOUNDS);
+
+    const group = L.layerGroup().addTo(map);
+    markersGroupRef.current = group;
+    mapInstanceRef.current = map;
+
+    const handleResize = () => {
+      map.invalidateSize();
     };
-  };
+    window.addEventListener('resize', handleResize);
+
+    return () => {
+      window.removeEventListener('resize', handleResize);
+      map.remove();
+      mapInstanceRef.current = null;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!markersGroupRef.current || !mapContainerRef.current) return;
+    markersGroupRef.current.clearLayers();
+    const box = mapContainerRef.current.parentElement;
+
+    SPORTELLI_LIST.forEach((s) => {
+      const A = AREE[s.area];
+      const isSelected = selectedSportello.id === s.id;
+      const isDimmed = Boolean(filtroArea && s.area !== filtroArea);
+
+      const html = `
+        <svg width="1" height="1">
+          <g class="mk" style="cursor:pointer;opacity:${isDimmed ? 0.25 : 1};transition:opacity .2s">
+            ${isSelected ? `
+              <circle r="24" fill="${A.col}" opacity=".18">
+                <animate attributeName="r" values="16;28;16" dur="2s" repeatCount="indefinite"/>
+                <animate attributeName="opacity" values=".35;0;.35" dur="2s" repeatCount="indefinite"/>
+              </circle>
+            ` : ''}
+            <circle r="${isSelected ? 16 : 12}" fill="${isSelected ? A.col : '#ffffff'}" stroke="${A.col}" stroke-width="${isSelected ? 4 : 3}"/>
+            <g fill="${isSelected ? '#ffffff' : A.col}">
+              <circle cy="${isSelected ? -5.5 : -4.5}" r="${isSelected ? 2 : 1.6}"/>
+              <rect x="${isSelected ? -1.7 : -1.4}" y="${isSelected ? -2.2 : -1.8}" width="${isSelected ? 3.4 : 2.8}" height="${isSelected ? 8 : 6.5}" rx="1.4"/>
+            </g>
+            ${isSelected ? '' : getMarkerLabel(s.nome)}
+            ${isSelected ? `
+              <g transform="translate(0,-30)">
+                <rect x="${-(nomeBreve(s.nome).length * 3.9 + 14)}" y="-22" width="${nomeBreve(s.nome).length * 7.8 + 28}" height="26" rx="13" fill="#0f172a"/>
+                <text text-anchor="middle" y="-4.5" font-size="12.5" font-weight="700" fill="#ffffff">${nomeBreve(s.nome)}</text>
+              </g>
+            ` : ''}
+          </g>
+        </svg>
+      `;
+
+      const marker = L.marker([s.lat, s.lng], {
+        icon: L.divIcon({
+          className: 'mk-ic',
+          html,
+          iconSize: [0, 0],
+          iconAnchor: [0, 0],
+        }),
+        zIndexOffset: isSelected ? 1000 : (isDimmed ? -500 : 0),
+        keyboard: false,
+      }).addTo(markersGroupRef.current!);
+
+      const element = marker.getElement()?.querySelector('.mk');
+      if (element) {
+        element.addEventListener('click', (ev) => {
+          ev.stopPropagation();
+          if (tipRef.current) tipRef.current.classList.add('hidden');
+          onSelectSportello(s);
+        });
+
+        element.addEventListener('mouseenter', () => {
+          if (isSelected || !tipRef.current || !box) return;
+          const rect = element.getBoundingClientRect();
+          const boxRect = box.getBoundingClientRect();
+          tipRef.current.textContent = nomeBreve(s.nome);
+          tipRef.current.style.left = `${rect.left + rect.width / 2 - boxRect.left}px`;
+          tipRef.current.style.top = `${rect.top - boxRect.top - 6}px`;
+          tipRef.current.classList.remove('hidden');
+        });
+
+        element.addEventListener('mouseleave', () => {
+          if (tipRef.current) tipRef.current.classList.add('hidden');
+        });
+      }
+    });
+  }, [selectedSportello, filtroArea, onSelectSportello]);
 
   return (
-    <div className={`relative bg-gradient-to-br from-sky-50/70 via-slate-50 to-indigo-50/50 rounded-2xl border border-sky-200/80 p-4 sm:p-6 overflow-hidden shadow-sm ${className}`}>
-      {/* Molise outline stylized background */}
-      <div className="absolute inset-0 opacity-15 pointer-events-none flex items-center justify-center">
-        <svg viewBox="0 0 400 300" className="w-full h-full object-contain">
-          <path
-            d="M 60,160 Q 110,60 220,50 Q 320,40 370,120 Q 380,220 280,260 Q 180,270 110,240 Z"
-            fill="#0284c7"
-          />
-        </svg>
-      </div>
-
-      <div className="flex items-center justify-between mb-3 text-xs text-slate-600 font-medium">
-        <div className="flex items-center gap-1.5">
-          <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"></span>
-          <span>{sportelli.length > 0 ? `${sportelli.length} Sportelli sul territorio del Molise` : 'Sportelli sul territorio del Molise'}</span>
-        </div>
-        {userCoords && (
-          <div className="flex items-center gap-1 text-sky-700 bg-sky-100/80 px-2 py-0.5 rounded-full">
-            <Navigation className="w-3 h-3 text-sky-600" />
-            <span>La tua posizione rilevata</span>
-          </div>
-        )}
-      </div>
-
-      {/* Map Interactive Canvas */}
-      <div className="relative w-full aspect-[16/10] bg-white/70 backdrop-blur-xs rounded-xl border border-slate-200/80 shadow-inner overflow-hidden">
-        {/* Subtle grid lines */}
-        <div className="absolute inset-0 bg-[linear-gradient(to_right,#e2e8f0_1px,transparent_1px),linear-gradient(to_bottom,#e2e8f0_1px,transparent_1px)] bg-[size:2rem_2rem] opacity-40"></div>
-
-        {/* Region Labels */}
-        <div className="absolute top-2 left-3 text-[10px] uppercase font-bold tracking-widest text-slate-400 select-none">
-          Provincia di Isernia
-        </div>
-        <div className="absolute bottom-2 right-3 text-[10px] uppercase font-bold tracking-widest text-slate-400 select-none">
-          Provincia di Campobasso
-        </div>
-        <div className="absolute top-2 right-8 text-[9px] uppercase font-semibold text-sky-600/70 select-none flex items-center gap-1">
-          <span>Costa Adriatica</span>
-          <span className="text-xs">🌊</span>
-        </div>
-
-        {/* User position indicator */}
-        {userCoords && (() => {
-          const userPos = projectToPercent(userCoords.lat, userCoords.lng);
-          return (
-            <div
-              style={{ left: `${userPos.x}%`, top: `${userPos.y}%` }}
-              className="absolute -translate-x-1/2 -translate-y-1/2 z-20 pointer-events-none"
-            >
-              <div className="relative flex items-center justify-center">
-                <div className="w-8 h-8 rounded-full bg-sky-500/20 animate-ping absolute"></div>
-                <div className="w-5 h-5 rounded-full bg-sky-600 border-2 border-white shadow-md flex items-center justify-center">
-                  <Navigation className="w-2.5 h-2.5 text-white" />
-                </div>
-              </div>
-            </div>
-          );
-        })()}
-
-        {/* Desks Pins */}
-        {sportelli.map((s) => {
-          const pos = projectToPercent(s.lat, s.lng);
-          const isSelected = selectedSportelloId === s.id;
-          const isCampobassoSim = s.comune.includes('SIM');
-
-          return (
-            <button
-              key={s.id}
-              onClick={() => onSelectSportello(s)}
-              style={{ left: `${pos.x}%`, top: `${pos.y}%` }}
-              className={`absolute -translate-x-1/2 -translate-y-1/2 group z-10 transition-all duration-200 focus:outline-none`}
-              title={`${s.nome} (${s.comune})`}
-            >
-              <div className="relative flex flex-col items-center">
-                {/* Pin badge */}
-                <div
-                  className={`px-2 py-1 rounded-full text-[10px] font-bold shadow-md transition-transform duration-200 flex items-center gap-1 whitespace-nowrap ${
-                    isSelected
-                      ? 'bg-sky-600 text-white scale-110 ring-2 ring-sky-300 ring-offset-1'
-                      : isCampobassoSim
-                      ? 'bg-purple-700 text-white hover:scale-105'
-                      : 'bg-white text-slate-800 border border-slate-300 hover:bg-sky-50 hover:border-sky-400 hover:scale-105'
-                  }`}
-                >
-                  <MapPin className={`w-3 h-3 ${isSelected ? 'text-white' : isCampobassoSim ? 'text-amber-300' : 'text-sky-600'}`} />
-                  <span>{s.comune.replace(' (sede SIM)', '')}</span>
-                  {s.distanzaKm !== undefined && (
-                    <span className={`text-[9px] px-1 rounded ${isSelected ? 'bg-sky-700' : 'bg-slate-100 text-slate-600'}`}>
-                      {s.distanzaKm}km
-                    </span>
-                  )}
-                </div>
-
-                {/* Pin stem */}
-                <div className={`w-1.5 h-1.5 rotate-45 -mt-0.5 ${isSelected ? 'bg-sky-600' : isCampobassoSim ? 'bg-purple-700' : 'bg-white border-r border-b border-slate-300'}`}></div>
-              </div>
-            </button>
-          );
-        })}
-      </div>
-
-      <div className="mt-2 text-center text-[11px] text-slate-500">
-        Clicca su uno sportello per selezionarlo e visualizzare orari e disponibilità.
-      </div>
+    <div className="relative" style={{ padding: '12px 16px 8px' }}>
+      <div id="molise-map" ref={mapContainerRef} role="img" aria-label="Mappa degli sportelli in Molise" />
+      <div
+        ref={tipRef}
+        id="map-tip"
+        style={{ zIndex: 1000 }}
+        className="pointer-events-none absolute hidden -translate-x-1/2 -translate-y-full px-2.5 py-1 rounded-lg bg-slate-900 text-white text-[11px] font-bold whitespace-nowrap shadow-lg transition-all"
+      />
     </div>
   );
 };

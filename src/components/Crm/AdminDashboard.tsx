@@ -10,6 +10,7 @@ import { ReportView } from './ReportView';
 import { QrCodeWebTvView } from './QrCodeWebTvView';
 import { AccessiRuoliView } from './AccessiRuoliView';
 import { SportelliManagerView } from './SportelliManagerView';
+import { EventiManager } from './EventiManager';
 
 interface AdminDashboardProps {
   onExitCrm: () => void;
@@ -117,6 +118,13 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
         {currentTab === 'report' && (
           <ReportView
             role={effectiveRole}
+          />
+        )}
+
+        {currentTab === 'eventi' && (
+          <EventiManager
+            role={effectiveRole}
+            onNavigateToPublicPortal={onExitCrm}
           />
         )}
 

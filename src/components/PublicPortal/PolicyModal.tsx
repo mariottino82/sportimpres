@@ -334,7 +334,7 @@ export const PolicyModal: React.FC<PolicyModalProps> = ({ type: initialType, onC
         <div className="p-4 sm:p-5 bg-slate-50 border-t border-slate-200 flex items-center justify-between gap-3 shrink-0">
           <div className="text-[11px] text-slate-500 flex items-center gap-1.5">
             <Mail className="w-3.5 h-3.5 text-slate-400" />
-            <span>Contatto DPO: <strong>dpo@sviluppoitaliamolise.it</strong></span>
+            <span>Contatto DPO: <strong>dpo@slalomsrl.it</strong></span>
           </div>
 
           <button

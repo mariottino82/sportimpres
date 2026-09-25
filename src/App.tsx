@@ -84,6 +84,12 @@ export default function App() {
     setMode('admin');
   };
 
+  const handleOpenCrmEventi = () => {
+    setAdminInitialTab('eventi');
+    setAdminInitialSubTab('eventi');
+    setMode('admin');
+  };
+
   const handleWatchVideo = (video: WebTvVideo) => {
     setSelectedWebTvVideo(video);
   };
@@ -106,34 +112,73 @@ export default function App() {
   };
 
   return (
-    <div className="min-h-screen flex flex-col bg-slate-50 text-slate-900 font-sans selection:bg-sky-500 selection:text-white w-full max-w-full overflow-x-hidden">
+    <div className="min-h-screen flex flex-col bg-slate-50 text-slate-900 font-sans selection:bg-sky-500 selection:text-white w-full max-w-full overflow-x-clip">
       
-      {/* 1. Institutional Banner at top */}
-      <InstitutionalBanner />
+      {/* Header Sticky Group: Institutional Banner + Navigation Bar permanently fixed on scroll */}
+      <div className={mode !== 'admin' ? "sticky top-0 z-50 w-full bg-white shadow-xs" : "w-full"}>
+        {/* 1. Institutional Banner at top */}
+        <InstitutionalBanner />
 
-      {/* 2. Header (Rendered in Public & Booking modes) */}
-      {mode !== 'admin' && (
-        <header className="sticky top-0 z-40 bg-white/95 backdrop-blur-md border-b border-slate-200/90 shadow-2xs w-full min-w-0">
-          <div className="max-w-7xl mx-auto px-3 sm:px-6 py-2.5 sm:py-3.5 flex items-center justify-between gap-2 sm:gap-4 min-w-0">
+        {/* 2. Header (Rendered in Public & Booking modes) */}
+        {mode !== 'admin' && (
+          <header className="bg-white/95 backdrop-blur-md border-b border-slate-200/90 shadow-2xs w-full min-w-0">
+            <div className="max-w-7xl mx-auto px-3 sm:px-6 py-2.5 sm:py-3 flex items-center justify-end md:justify-between gap-3 min-w-0">
             
-            {/* Logo */}
-            <div
-              onClick={() => setMode('public')}
-              className="cursor-pointer hover:opacity-95 transition-opacity shrink-0"
-            >
-              <Logo size="sm" className="sm:hidden" />
-              <Logo size="md" className="hidden sm:flex" />
-            </div>
+            {/* Desktop Navigation Links (when on public landing) */}
+            {mode === 'public' && (
+              <nav className="hidden md:flex items-center gap-6 text-sm font-semibold text-slate-600">
+                <a
+                  href="#news"
+                  className="hover:text-sky-700 inline-flex items-center gap-1.5 transition-colors"
+                >
+                  <span>News ed Eventi</span>
+                  <span className="px-1.5 py-0.5 rounded-md bg-amber-100 text-amber-700 text-[10px] font-bold">
+                    NUOVO
+                  </span>
+                </a>
+                <a href="#sportelli" className="hover:text-sky-700 transition-colors">
+                  Sportelli
+                </a>
+                <a href="#contatti" className="hover:text-sky-700 transition-colors">
+                  Contatti
+                </a>
+              </nav>
+            )}
+
+            {/* In booking mode, show quick return logo */}
+            {mode === 'booking' && (
+              <div
+                onClick={() => setMode('public')}
+                className="cursor-pointer hover:opacity-95 transition-opacity shrink-0"
+              >
+                <Logo size="sm" />
+              </div>
+            )}
 
             {/* Navigation Actions */}
             <div className="flex items-center gap-1.5 sm:gap-3 shrink-0">
+              {/* Mobile News Jump Button */}
+              {mode === 'public' && (
+                <a
+                  href="#news"
+                  className="md:hidden px-2.5 py-1.5 rounded-xl border border-slate-300 text-slate-700 text-xs font-bold transition-colors"
+                >
+                  News
+                </a>
+              )}
+
               {/* Book Appointment CTA (when on public landing) */}
               {mode === 'public' && (
                 <button
                   onClick={() => handleStartBooking()}
-                  className="flex items-center gap-1.5 px-3 sm:px-4 py-2 rounded-xl bg-sky-600 hover:bg-sky-700 text-white text-xs font-bold shadow-xs transition-colors shrink-0"
+                  className="cta-blink animate-lampeggio flex items-center gap-1.5 px-3.5 sm:px-5 py-2 sm:py-2.5 rounded-xl bg-gradient-to-r from-sky-600 to-blue-700 hover:from-sky-700 hover:to-blue-800 text-white text-xs sm:text-sm font-bold shadow-lg shadow-sky-600/25 transition-all shrink-0 cursor-pointer whitespace-nowrap"
+                  title="Prenota subito un appuntamento"
                 >
-                  <Calendar className="w-3.5 h-3.5 shrink-0" />
+                  <span className="relative flex h-2 w-2 shrink-0">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-300 opacity-75"></span>
+                    <span className="relative inline-flex rounded-full h-2 w-2 bg-amber-400"></span>
+                  </span>
+                  <Calendar className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0" />
                   <span>Prenota Ora</span>
                 </button>
               )}
@@ -177,6 +222,7 @@ export default function App() {
           </div>
         </header>
       )}
+      </div>
 
       {/* 3. Main Body */}
       <div className="flex-1">
@@ -187,6 +233,7 @@ export default function App() {
             onOpenWebTvModal={handleWatchVideo}
             onOpenLookup={() => setShowLookupModal(true)}
             onOpenCrmShowcaseConfig={handleOpenShowcaseConfig}
+            onOpenCrmEventi={handleOpenCrmEventi}
           />
         )}
 

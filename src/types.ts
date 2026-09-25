@@ -234,3 +234,20 @@ export interface HeroShowcaseConfig {
     items: DigitalContentItem[];
   };
 }
+
+export interface EventoCrm {
+  id: number;
+  data: string;
+  tipo: 'EVENTO' | 'WORKSHOP' | 'BANDO';
+  titolo: string;
+  testo: string;
+  luogo?: string;
+  ora?: string;
+  nota?: string;
+  bottone?: string;
+  link?: string;
+  manifesto_url?: string;
+  attivo: number;
+  creato_il?: string;
+}
+
