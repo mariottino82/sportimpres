@@ -4,9 +4,12 @@ import { MOLISE_COORDS, MOLISE_RILIEVO_BOUNDS } from '../data/moliseGeo';
 import { SPORTELLI_LIST, AREE, nomeBreve, SportelloInfo } from '../data/sportelliList';
 
 interface MoliseMapProps {
-  selectedSportello: SportelloInfo;
-  filtroArea: string;
-  onSelectSportello: (sportello: SportelloInfo) => void;
+  selectedSportello?: SportelloInfo | null;
+  selectedSportelloId?: number | string | null;
+  sportelli?: SportelloInfo[] | any[];
+  userCoords?: { lat: number; lng: number } | null;
+  filtroArea?: string;
+  onSelectSportello: (sportello: SportelloInfo | any) => void;
 }
 
 const LBL_POS: Record<string, string> = {
@@ -25,6 +28,9 @@ function getMarkerLabel(nome: string) {
 
 export const MoliseMap: React.FC<MoliseMapProps> = ({
   selectedSportello,
+  selectedSportelloId,
+  sportelli,
+  userCoords,
   filtroArea,
   onSelectSportello,
 }) => {
@@ -95,9 +101,14 @@ export const MoliseMap: React.FC<MoliseMapProps> = ({
     markersGroupRef.current.clearLayers();
     const box = mapContainerRef.current.parentElement;
 
-    SPORTELLI_LIST.forEach((s) => {
-      const A = AREE[s.area];
-      const isSelected = selectedSportello.id === s.id;
+    const listToRender = (sportelli && sportelli.length > 0) ? sportelli : SPORTELLI_LIST;
+
+    listToRender.forEach((s) => {
+      const A = AREE[s.area as keyof typeof AREE] || { col: '#0284c7', nome: 'Molise', soft: '#e0f2fe' };
+      const isSelected = Boolean(
+        (selectedSportello && selectedSportello.id === s.id) ||
+        (selectedSportelloId !== undefined && selectedSportelloId !== null && String(selectedSportelloId) === String(s.id))
+      );
       const isDimmed = Boolean(filtroArea && s.area !== filtroArea);
 
       const html = `
@@ -159,7 +170,27 @@ export const MoliseMap: React.FC<MoliseMapProps> = ({
         });
       }
     });
-  }, [selectedSportello, filtroArea, onSelectSportello]);
+
+    if (userCoords && userCoords.lat && userCoords.lng) {
+      const userHtml = `
+        <div style="position:relative;width:24px;height:24px;margin-left:-12px;margin-top:-12px">
+          <span style="position:absolute;inset:0;border-radius:9999px;background-color:#38bdf8;opacity:0.75;animation:ping 1.5s cubic-bezier(0,0,0.2,1) infinite"></span>
+          <span style="position:relative;display:flex;width:24px;height:24px;border-radius:9999px;background-color:#0284c7;border:3px solid #ffffff;box-shadow:0 4px 6px -1px rgba(0,0,0,0.2);align-items:center;justify-content:center">
+            <span style="width:8px;height:8px;border-radius:9999px;background-color:#ffffff"></span>
+          </span>
+        </div>
+      `;
+      L.marker([userCoords.lat, userCoords.lng], {
+        icon: L.divIcon({
+          className: 'user-loc-ic',
+          html: userHtml,
+          iconSize: [24, 24],
+          iconAnchor: [12, 12],
+        }),
+        zIndexOffset: 1200,
+      }).addTo(markersGroupRef.current!);
+    }
+  }, [selectedSportello, selectedSportelloId, sportelli, userCoords, filtroArea, onSelectSportello]);
 
   return (
     <div className="relative" style={{ padding: '12px 16px 8px' }}>

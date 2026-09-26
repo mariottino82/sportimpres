@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Logo } from '../Logo';
 import { MoliseMap } from '../MoliseMap';
 import { PdfPromemoriaModal } from '../PdfPromemoriaModal';
@@ -179,6 +179,10 @@ export const BookingWizard: React.FC<BookingWizardProps> = ({
         if (initialSportelloId) {
           const found = list.find((s) => s.id === initialSportelloId);
           if (found) setSelectedSportello(found);
+        } else {
+          // Se non selezionato in precedenza lo sportello, imposta come consigliato quello Campobasso (sede SIM)
+          const cb = list.find((s) => s.id === 2 || s.comune.toLowerCase().includes('campobasso'));
+          if (cb) setSelectedSportello(cb);
         }
       })
       .catch((err) => {
@@ -186,6 +190,28 @@ export const BookingWizard: React.FC<BookingWizardProps> = ({
         setSportelli([]);
       });
   }, [initialSportelloId]);
+
+  // Sportelli proposti in primo piano in Step 6
+  const proposedSportelli = useMemo(() => {
+    if (sportelli.length === 0) return [];
+    if (userCoords) {
+      return sportelli.slice(0, 3);
+    }
+    // Senza geolocalizzazione: proponi Campobasso (sede SIM) come consigliato
+    const cb = sportelli.find((s) => s.id === 2 || s.comune.toLowerCase().includes('campobasso'));
+    const isernia = sportelli.find((s) => s.id === 6 || s.comune.toLowerCase().includes('isernia'));
+    const termoli = sportelli.find((s) => s.id === 10 || s.comune.toLowerCase().includes('termoli'));
+    const others = sportelli.filter((s) => s !== cb && s !== isernia && s !== termoli);
+
+    const list: Sportello[] = [];
+    if (cb) list.push(cb);
+    if (isernia) list.push(isernia);
+    if (termoli) list.push(termoli);
+    while (list.length < 3 && others.length > 0) {
+      list.push(others.shift()!);
+    }
+    return list;
+  }, [sportelli, userCoords]);
 
   // Handle Geolocation in S6
   const requestGeolocation = () => {
@@ -1267,8 +1293,22 @@ export const BookingWizard: React.FC<BookingWizardProps> = ({
 
             {/* Top 3 Proposed Desks */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              {sportelli.slice(0, 3).map((s, idx) => {
+              {proposedSportelli.map((s, idx) => {
                 const isSelected = selectedSportello?.id === s.id;
+                const isCampobassoSim = s.id === 2 || s.comune.toLowerCase().includes('campobasso');
+                const isClosestByDistance = Boolean(userCoords && idx === 0 && s.distanzaKm !== undefined);
+
+                let badgeText = `Opzione ${idx + 1}`;
+                let badgeClass = 'bg-slate-100 text-slate-700';
+
+                if (isClosestByDistance) {
+                  badgeText = 'Più vicino alla tua posizione';
+                  badgeClass = 'bg-emerald-100 text-emerald-800 font-bold';
+                } else if (isCampobassoSim) {
+                  badgeText = 'Consigliato (sede SIM)';
+                  badgeClass = 'bg-emerald-100 text-emerald-800 font-bold';
+                }
+
                 return (
                   <div
                     key={s.id}
@@ -1281,10 +1321,8 @@ export const BookingWizard: React.FC<BookingWizardProps> = ({
                   >
                     <div>
                       <div className="flex items-center justify-between gap-2 mb-2">
-                        <span className={`text-[10px] font-extrabold uppercase px-2 py-0.5 rounded-full ${
-                          idx === 0 ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 text-slate-700'
-                        }`}>
-                          {idx === 0 ? 'Consigliato più vicino' : `Opzione ${idx + 1}`}
+                        <span className={`text-[10px] font-extrabold uppercase px-2 py-0.5 rounded-full ${badgeClass}`}>
+                          {badgeText}
                         </span>
                         {s.distanzaKm !== undefined && (
                           <span className="text-xs font-bold text-sky-700">
@@ -1344,9 +1382,13 @@ export const BookingWizard: React.FC<BookingWizardProps> = ({
             {/* Interactive Map */}
             <MoliseMap
               sportelli={sportelli}
+              selectedSportello={selectedSportello as any}
               selectedSportelloId={selectedSportello?.id}
               userCoords={userCoords}
-              onSelectSportello={(s) => setSelectedSportello(s)}
+              onSelectSportello={(s) => {
+                const found = sportelli.find((item) => item.id === s.id) || s;
+                setSelectedSportello(found);
+              }}
             />
 
             {/* All Desks Fallback Selector */}
