@@ -31,6 +31,20 @@ export interface AppointmentEmailParams {
 
 let transporter: Transporter | null = null;
 
+export function resolveSmtpSecure(rawSecure: string | undefined, port: number): boolean {
+  if (rawSecure !== undefined && rawSecure !== null && rawSecure.trim() !== '') {
+    const val = rawSecure.trim().toLowerCase();
+    if (['true', '1', 'yes', 'ssl', 'tls', 'ssl/tls', 'smtps'].includes(val)) {
+      return true;
+    }
+    if (['false', '0', 'no', 'starttls', 'none'].includes(val)) {
+      return false;
+    }
+  }
+  // Se non specificato esplicitamente, la porta 465 è standard SSL/TLS (Implicit TLS)
+  return port === 465;
+}
+
 export function getEmailTransporter(forceReload = false): Transporter | null {
   if (transporter && !forceReload) return transporter;
 
@@ -44,9 +58,7 @@ export function getEmailTransporter(forceReload = false): Transporter | null {
 
   const host = process.env.SMTP_HOST?.trim();
   const port = parseInt(process.env.SMTP_PORT?.trim() || '465', 10);
-  const secure = process.env.SMTP_SECURE !== undefined
-    ? process.env.SMTP_SECURE.trim() === 'true'
-    : port === 465;
+  const secure = resolveSmtpSecure(process.env.SMTP_SECURE, port);
   const user = process.env.SMTP_USER?.trim();
   const pass = process.env.SMTP_PASS?.trim();
 
@@ -59,12 +71,13 @@ export function getEmailTransporter(forceReload = false): Transporter | null {
         user,
         pass,
       },
-      connectionTimeout: 8000,
-      greetingTimeout: 8000,
-      socketTimeout: 10000,
+      connectionTimeout: 15000,
+      greetingTimeout: 15000,
+      socketTimeout: 20000,
       tls: {
         rejectUnauthorized: false, // Permette server con certificati intermedi o custom
-        minVersion: 'TLSv1.2'
+        minVersion: 'TLSv1.2',
+        servername: host
       }
     });
     console.log(`[EMAIL SERVICE] Inizializzato trasporto SMTP verso ${host}:${port} (SSL/TLS: ${secure}, Utente: ${user})`);
@@ -406,7 +419,38 @@ PR Molise FESR FSE+ 2021-2027
       console.log(`[EMAIL SERVICE] Email di conferma inviata con successo da "${sender.name}" <${sender.address}> (Reply-To: "${replyTo.name}" <${replyTo.address}>) a ${params.to}. MessageId: ${info.messageId}`);
       return { success: true, messageId: info.messageId };
     } catch (err: any) {
-      console.error(`[EMAIL SERVICE] Errore nell'invio email a ${params.to}:`, err.message);
+      console.warn(`[EMAIL SERVICE] Primo tentativo invio fallito a ${params.to} (${err.message}). Ritento ricreando la connessione SMTP...`);
+      try {
+        const freshTransporter = getEmailTransporter(true);
+        if (freshTransporter) {
+          const retryInfo = await freshTransporter.sendMail({
+            from: {
+              name: sender.name,
+              address: sender.address
+            },
+            replyTo: {
+              name: replyTo.name,
+              address: replyTo.address
+            },
+            to: params.to,
+            subject: `Conferma Appuntamento #${params.codice} - Sportello Imprese Molise`,
+            text: textContent,
+            html: htmlContent,
+            attachments: [
+              {
+                filename: `appuntamento_${params.codice}.ics`,
+                content: icsContent,
+                contentType: 'text/calendar; charset=utf-8; method=REQUEST'
+              }
+            ]
+          });
+          console.log(`[EMAIL SERVICE] Email di conferma inviata con successo al secondo tentativo a ${params.to}. MessageId: ${retryInfo.messageId}`);
+          return { success: true, messageId: retryInfo.messageId };
+        }
+      } catch (retryErr: any) {
+        console.error(`[EMAIL SERVICE] Errore definitivo nell'invio email a ${params.to}:`, retryErr.message);
+        return { success: false, error: retryErr.message };
+      }
       return { success: false, error: err.message };
     }
   } else {
@@ -441,9 +485,7 @@ export async function verifySmtpConnection(): Promise<{
   const mailTransporter = getEmailTransporter(true);
   const host = process.env.SMTP_HOST?.trim();
   const port = parseInt(process.env.SMTP_PORT?.trim() || '465', 10);
-  const secure = process.env.SMTP_SECURE !== undefined
-    ? process.env.SMTP_SECURE.trim() === 'true'
-    : port === 465;
+  const secure = resolveSmtpSecure(process.env.SMTP_SECURE, port);
   const user = process.env.SMTP_USER?.trim();
   const sender = resolveFromSender();
   const replyTo = resolveReplyTo();
