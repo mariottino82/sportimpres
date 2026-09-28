@@ -11,6 +11,8 @@ export interface EventoItem {
   link?: string;
   hasManifesto?: boolean;
   manifesto_url?: string;
+  locandina_tipo?: 'image' | 'pdf' | '';
+  locandina_nome?: string;
   attivo?: number;
 }
 

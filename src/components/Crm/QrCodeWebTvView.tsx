@@ -19,15 +19,13 @@ import {
   Sliders,
   Sparkles,
   Trash2,
-  AlertTriangle,
-  Newspaper
+  AlertTriangle
 } from 'lucide-react';
 import { HeroShowcaseManager } from './HeroShowcaseManager';
-import { EventiManager } from './EventiManager';
 
 interface QrCodeWebTvViewProps {
   role: CrmRole;
-  initialSubTab?: 'qrcode' | 'webtv' | 'vetrina' | 'eventi';
+  initialSubTab?: 'qrcode' | 'webtv' | 'vetrina';
   onNavigateToPublicPortal?: () => void;
 }
 
@@ -119,7 +117,7 @@ export const QrCodeWebTvView: React.FC<QrCodeWebTvViewProps> = ({
   onNavigateToPublicPortal
 }) => {
   const isAuthorizedToManage = role === 'ADMIN' || role === 'COMUNICAZIONE' || role === 'COORDINATORE';
-  const [activeSubTab, setActiveSubTab] = useState<'qrcode' | 'webtv' | 'vetrina' | 'eventi'>(
+  const [activeSubTab, setActiveSubTab] = useState<'qrcode' | 'webtv' | 'vetrina'>(
     initialSubTab || 'qrcode'
   );
   const [videos, setVideos] = useState<WebTvVideo[]>([]);
@@ -325,18 +323,6 @@ export const QrCodeWebTvView: React.FC<QrCodeWebTvViewProps> = ({
         >
           <Tv className="w-4 h-4 shrink-0" />
           <span>Web TV "La Bottega delle Opportunità" ({videos.length})</span>
-        </button>
-
-        <button
-          onClick={() => setActiveSubTab('eventi')}
-          className={`px-3 sm:px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-2 transition-all shrink-0 whitespace-nowrap cursor-pointer ${
-            activeSubTab === 'eventi'
-              ? 'bg-sky-600 text-white shadow-xs'
-              : 'text-slate-600 hover:bg-slate-100'
-          }`}
-        >
-          <Newspaper className="w-4 h-4 text-sky-300 shrink-0" />
-          <span>News ed Eventi (Prossimi Appuntamenti)</span>
         </button>
 
         {(role === 'ADMIN' || role === 'COMUNICAZIONE' || role === 'COORDINATORE') && (
@@ -657,16 +643,6 @@ export const QrCodeWebTvView: React.FC<QrCodeWebTvViewProps> = ({
          ========================================================================= */}
       {activeSubTab === 'vetrina' && (
         <HeroShowcaseManager
-          role={role}
-          onNavigateToPublicPortal={onNavigateToPublicPortal}
-        />
-      )}
-
-      {/* =========================================================================
-          TAB 4: GESTIONE NEWS ED EVENTI (HOMEPAGE DINAMICA)
-         ========================================================================= */}
-      {activeSubTab === 'eventi' && (
-        <EventiManager
           role={role}
           onNavigateToPublicPortal={onNavigateToPublicPortal}
         />

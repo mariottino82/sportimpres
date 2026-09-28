@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { EventoCrm, CrmRole } from '../../types';
 import { MESI_IT } from '../../data/portalEvents';
 import {
@@ -17,6 +17,12 @@ import {
   Tag,
   Newspaper,
   ExternalLink,
+  UploadCloud,
+  FileText,
+  Image as ImageIcon,
+  Paperclip,
+  Check,
+  AlertCircle
 } from 'lucide-react';
 
 interface EventiManagerProps {
@@ -53,8 +59,15 @@ export const EventiManager: React.FC<EventiManagerProps> = ({
     bottone: 'Scopri',
     link: '',
     manifesto_url: '',
+    locandina_tipo: '' as 'image' | 'pdf' | '',
+    locandina_nome: '',
     attivo: 1,
   });
+
+  const [uploadingLocandina, setUploadingLocandina] = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
+  const [locandinaPreviewModal, setLocandinaPreviewModal] = useState<{ url: string; tipo: 'image' | 'pdf'; titolo: string } | null>(null);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   const [saving, setSaving] = useState(false);
   const [deleteConfirmId, setDeleteConfirmId] = useState<number | null>(null);
@@ -80,6 +93,7 @@ export const EventiManager: React.FC<EventiManagerProps> = ({
 
   const handleOpenCreate = () => {
     setEditingId(null);
+    setUploadError(null);
     setFormData({
       data: new Date().toISOString().split('T')[0],
       tipo: 'EVENTO',
@@ -91,6 +105,8 @@ export const EventiManager: React.FC<EventiManagerProps> = ({
       bottone: 'Scopri',
       link: '',
       manifesto_url: '',
+      locandina_tipo: '',
+      locandina_nome: '',
       attivo: 1,
     });
     setShowModal(true);
@@ -98,6 +114,19 @@ export const EventiManager: React.FC<EventiManagerProps> = ({
 
   const handleOpenEdit = (item: EventoCrm) => {
     setEditingId(item.id);
+    setUploadError(null);
+
+    // Rileva tipo locandina da tipo memorizzato o estensione
+    let detectedTipo: 'image' | 'pdf' | '' = item.locandina_tipo || '';
+    if (!detectedTipo && item.manifesto_url) {
+      const lower = item.manifesto_url.toLowerCase();
+      if (lower.endsWith('.pdf') || lower.startsWith('data:application/pdf')) {
+        detectedTipo = 'pdf';
+      } else {
+        detectedTipo = 'image';
+      }
+    }
+
     setFormData({
       data: item.data || new Date().toISOString().split('T')[0],
       tipo: item.tipo || 'EVENTO',
@@ -109,9 +138,87 @@ export const EventiManager: React.FC<EventiManagerProps> = ({
       bottone: item.bottone || 'Scopri',
       link: item.link || '',
       manifesto_url: item.manifesto_url || '',
+      locandina_tipo: detectedTipo,
+      locandina_nome: item.locandina_nome || (item.manifesto_url ? 'Locandina allegata' : ''),
       attivo: item.attivo !== undefined ? item.attivo : 1,
     });
     setShowModal(true);
+  };
+
+  const handleLocandinaFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // Reset input value to allow selecting the same file again if needed
+    e.target.value = '';
+
+    const isPdf = file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf');
+    const isImage = file.type.startsWith('image/') || /\.(jpe?g|png|webp)$/i.test(file.name);
+
+    if (!isPdf && !isImage) {
+      setUploadError('Formato file non valido. Seleziona una locandina in formato JPEG, JPG, PNG o PDF.');
+      return;
+    }
+
+    if (file.size > 20 * 1024 * 1024) {
+      setUploadError('Il file è troppo grande. Dimensione massima consentita: 20 MB.');
+      return;
+    }
+
+    setUploadingLocandina(true);
+    setUploadError(null);
+
+    try {
+      const base64 = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result as string);
+        reader.onerror = () => reject(new Error('Errore lettura file locale'));
+        reader.readAsDataURL(file);
+      });
+
+      const detectedType: 'image' | 'pdf' = isPdf ? 'pdf' : 'image';
+
+      // Chiamata all'endpoint di upload backend per persistenza su disco /uploads
+      const res = await fetch('/api/upload-locandina', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          fileName: file.name,
+          fileData: base64,
+          fileType: detectedType,
+        }),
+      });
+
+      const data = await res.json();
+      if (!res.ok || !data.url) {
+        throw new Error(data.error || 'Errore durante il salvataggio sul server');
+      }
+
+      setFormData((prev) => ({
+        ...prev,
+        manifesto_url: data.url,
+        locandina_tipo: detectedType,
+        locandina_nome: file.name,
+        // Se il bottone ha ancora il valore default, suggerisci un testo adatto
+        bottone: prev.bottone === 'Scopri' ? (detectedType === 'pdf' ? 'Scarica Locandina PDF' : 'Vedi Locandina') : prev.bottone,
+      }));
+    } catch (err: any) {
+      console.error('Locandina upload error:', err);
+      setUploadError(err.message || 'Errore durante il caricamento del file');
+    } finally {
+      setUploadingLocandina(false);
+    }
+  };
+
+  const handleRemoveLocandina = () => {
+    setFormData((prev) => ({
+      ...prev,
+      manifesto_url: '',
+      locandina_tipo: '',
+      locandina_nome: '',
+      bottone: prev.bottone === 'Vedi Locandina' || prev.bottone === 'Scarica Locandina PDF' ? 'Scopri' : prev.bottone,
+    }));
+    setUploadError(null);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -346,6 +453,34 @@ export const EventiManager: React.FC<EventiManagerProps> = ({
                       </span>
                     )}
                   </div>
+
+                  {/* Locandina Indicator Badge */}
+                  {item.manifesto_url && (
+                    <div className="pt-1">
+                      <a
+                        href={item.manifesto_url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className={`inline-flex items-center gap-1.5 text-[10px] font-extrabold px-2.5 py-1 rounded-lg border transition-all ${
+                          item.locandina_tipo === 'pdf' || item.manifesto_url.toLowerCase().endsWith('.pdf')
+                            ? 'bg-red-50 text-red-700 border-red-200 hover:bg-red-100 hover:border-red-300'
+                            : 'bg-emerald-50 text-emerald-800 border-emerald-200 hover:bg-emerald-100 hover:border-emerald-300'
+                        }`}
+                      >
+                        {item.locandina_tipo === 'pdf' || item.manifesto_url.toLowerCase().endsWith('.pdf') ? (
+                          <FileText className="w-3.5 h-3.5 text-red-600" />
+                        ) : (
+                          <ImageIcon className="w-3.5 h-3.5 text-emerald-600" />
+                        )}
+                        <span>
+                          {item.locandina_tipo === 'pdf' || item.manifesto_url.toLowerCase().endsWith('.pdf')
+                            ? 'Locandina PDF allegata'
+                            : 'Locandina JPEG allegata'}
+                        </span>
+                        <ExternalLink className="w-3 h-3 ml-0.5 opacity-60" />
+                      </a>
+                    </div>
+                  )}
                 </div>
 
                 {/* Footer Actions */}
@@ -413,23 +548,23 @@ export const EventiManager: React.FC<EventiManagerProps> = ({
 
       {/* Add / Edit Event Modal */}
       {showModal && (
-        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto">
-          <div className="bg-white rounded-3xl p-6 sm:p-8 max-w-lg w-full space-y-5 shadow-2xl my-8">
+        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-5 overflow-y-auto">
+          <div className="bg-white rounded-3xl p-5 sm:p-7 max-w-xl sm:max-w-2xl w-full space-y-4 shadow-2xl my-auto max-h-[92vh] overflow-y-auto">
             <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-              <h3 className="font-display font-bold text-lg text-slate-900">
+              <h3 className="font-display font-bold text-base sm:text-lg text-slate-900">
                 {editingId ? 'Modifica Evento / Notizia' : 'Nuovo Evento o Notizia'}
               </h3>
               <button
                 type="button"
                 onClick={() => setShowModal(false)}
-                className="p-1 rounded-full text-slate-400 hover:bg-slate-100"
+                className="p-1.5 rounded-full text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition-colors cursor-pointer"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
 
             <form onSubmit={handleSubmit} className="space-y-4">
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs font-bold text-slate-700 mb-1">Data *</label>
                   <input
@@ -480,7 +615,7 @@ export const EventiManager: React.FC<EventiManagerProps> = ({
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs font-bold text-slate-700 mb-1">Luogo / Sede</label>
                   <input
@@ -503,7 +638,7 @@ export const EventiManager: React.FC<EventiManagerProps> = ({
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs font-bold text-slate-700 mb-1">Etichetta Nota</label>
                   <input
@@ -537,7 +672,182 @@ export const EventiManager: React.FC<EventiManagerProps> = ({
                 />
               </div>
 
-              <div className="flex items-center gap-2 pt-2">
+              {/* Sezione Caricamento Locandina (JPEG o PDF) */}
+              <div className="bg-slate-50 border border-slate-200 rounded-2xl p-3.5 sm:p-4 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <div className="p-1.5 rounded-lg bg-sky-100 text-sky-700 shrink-0">
+                      <UploadCloud className="w-4 h-4" />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold text-slate-800">
+                        Locandina Ufficiale (JPEG, PNG o PDF)
+                      </label>
+                      <span className="text-[11px] text-slate-500">
+                        Carica la locandina, manifesto o programma dell&apos;evento
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Input file nascosto */}
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/jpeg,image/png,image/webp,application/pdf"
+                  onChange={handleLocandinaFileSelect}
+                  className="hidden"
+                />
+
+                {/* Stato con locandina caricata */}
+                {formData.manifesto_url ? (
+                  <div className="bg-white rounded-xl border border-slate-200 p-3.5 space-y-3 shadow-2xs">
+                    <div className="flex items-center gap-3 min-w-0">
+                      {formData.locandina_tipo === 'pdf' || formData.manifesto_url.toLowerCase().endsWith('.pdf') ? (
+                        <div className="w-12 h-12 rounded-xl bg-red-50 border border-red-200 flex flex-col items-center justify-center text-red-600 shrink-0">
+                          <FileText className="w-6 h-6" />
+                          <span className="text-[8px] font-black uppercase tracking-wider mt-0.5">PDF</span>
+                        </div>
+                      ) : (
+                        <div className="w-12 h-12 rounded-xl bg-slate-100 border border-slate-200 overflow-hidden relative shrink-0 flex items-center justify-center">
+                          {formData.manifesto_url.startsWith('http') ||
+                          formData.manifesto_url.startsWith('/') ||
+                          formData.manifesto_url.startsWith('data:') ? (
+                            <img
+                              src={formData.manifesto_url}
+                              alt="Locandina"
+                              className="w-full h-full object-cover"
+                            />
+                          ) : (
+                            <ImageIcon className="w-6 h-6 text-sky-600" />
+                          )}
+                        </div>
+                      )}
+
+                      <div className="min-w-0 flex-1">
+                        <div className="flex flex-wrap items-center gap-1.5">
+                          <span
+                            className={`text-[9px] font-extrabold uppercase px-1.5 py-0.5 rounded ${
+                              formData.locandina_tipo === 'pdf' || formData.manifesto_url.toLowerCase().endsWith('.pdf')
+                                ? 'bg-red-100 text-red-700'
+                                : 'bg-emerald-100 text-emerald-800'
+                            }`}
+                          >
+                            {formData.locandina_tipo === 'pdf' || formData.manifesto_url.toLowerCase().endsWith('.pdf')
+                              ? 'Locandina PDF'
+                              : 'Locandina JPEG / PNG'}
+                          </span>
+                          <span className="text-[10px] text-emerald-600 font-bold flex items-center gap-0.5">
+                            <Check className="w-3 h-3" /> Pronta
+                          </span>
+                        </div>
+                        <div className="text-xs font-bold text-slate-800 truncate mt-1" title={formData.locandina_nome || 'locandina'}>
+                          {formData.locandina_nome || 'locandina_ufficiale'}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Azioni sui pulsanti: riga dedicata flessibile, mai tagliata fuori */}
+                    <div className="flex flex-wrap items-center gap-2 pt-2.5 border-t border-slate-100">
+                      <a
+                        href={formData.manifesto_url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-200 hover:bg-slate-100 text-xs font-bold text-slate-700 bg-white transition-colors cursor-pointer shadow-2xs"
+                      >
+                        <Eye className="w-3.5 h-3.5 text-slate-500" />
+                        <span>Visualizza</span>
+                      </a>
+                      <button
+                        type="button"
+                        onClick={() => fileInputRef.current?.click()}
+                        className="inline-flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-200 hover:bg-slate-100 text-xs font-bold text-slate-700 bg-white transition-colors cursor-pointer shadow-2xs"
+                      >
+                        <UploadCloud className="w-3.5 h-3.5 text-sky-600" />
+                        <span>Sostituisci</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleRemoveLocandina}
+                        className="inline-flex items-center justify-center gap-1 px-2.5 py-1.5 rounded-lg text-red-600 hover:bg-red-50 text-xs font-bold transition-colors cursor-pointer ml-auto"
+                        title="Rimuovi locandina"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                        <span>Rimuovi</span>
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  /* Area di selezione e drag-drop del file */
+                  <div
+                    onClick={() => fileInputRef.current?.click()}
+                    onDragOver={(e) => e.preventDefault()}
+                    onDrop={(e) => {
+                      e.preventDefault();
+                      const file = e.dataTransfer.files?.[0];
+                      if (file && fileInputRef.current) {
+                        const dt = new DataTransfer();
+                        dt.items.add(file);
+                        fileInputRef.current.files = dt.files;
+                        handleLocandinaFileSelect({ target: fileInputRef.current } as any);
+                      }
+                    }}
+                    className="border-2 border-dashed border-slate-300 hover:border-sky-500 rounded-xl p-4 text-center cursor-pointer transition-all bg-white group hover:bg-sky-50/20"
+                  >
+                    <div className="flex flex-col items-center justify-center gap-1.5">
+                      <div className="w-10 h-10 rounded-full bg-sky-50 text-sky-600 flex items-center justify-center group-hover:scale-105 transition-transform">
+                        {uploadingLocandina ? (
+                          <span className="w-5 h-5 border-2 border-sky-600 border-t-transparent rounded-full animate-spin" />
+                        ) : (
+                          <UploadCloud className="w-5 h-5" />
+                        )}
+                      </div>
+                      <div>
+                        <div className="text-xs font-bold text-slate-800">
+                          {uploadingLocandina
+                            ? 'Caricamento locandina in corso...'
+                            : 'Clicca o trascina qui la locandina'}
+                        </div>
+                        <div className="text-[11px] text-slate-500 mt-0.5">
+                          Supporta formato <strong>JPEG (.jpg, .jpeg)</strong>, <strong>PNG</strong> o documento <strong>PDF</strong>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {uploadError && (
+                  <div className="p-2.5 rounded-xl bg-red-50 border border-red-200 text-xs text-red-700 flex items-center gap-2">
+                    <AlertCircle className="w-4 h-4 shrink-0 text-red-600" />
+                    <span>{uploadError}</span>
+                  </div>
+                )}
+
+                {/* Opzione facoltativa per inserire URL diretto web */}
+                <div className="pt-1">
+                  <div className="text-[10px] text-slate-400 font-semibold mb-1">
+                    Oppure specifica l&apos;URL web diretto della locandina:
+                  </div>
+                  <input
+                    type="text"
+                    placeholder="https://.../locandina.pdf oppure .jpg"
+                    value={formData.manifesto_url}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      const isPdf = val.toLowerCase().endsWith('.pdf');
+                      setFormData({
+                        ...formData,
+                        manifesto_url: val,
+                        locandina_tipo: val ? (isPdf ? 'pdf' : 'image') : '',
+                        locandina_nome: val ? 'locandina_esterna' : '',
+                      });
+                    }}
+                    className="w-full px-3 py-1.5 rounded-lg border border-slate-200 text-[11px] focus:ring-1 focus:ring-sky-500 bg-white"
+                  />
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2 pt-1">
                 <input
                   type="checkbox"
                   id="attivoCheck"
@@ -550,18 +860,18 @@ export const EventiManager: React.FC<EventiManagerProps> = ({
                 </label>
               </div>
 
-              <div className="flex items-center justify-end gap-2 pt-4 border-t border-slate-100">
+              <div className="flex flex-col-reverse sm:flex-row items-center justify-end gap-2 pt-3 border-t border-slate-100">
                 <button
                   type="button"
                   onClick={() => setShowModal(false)}
-                  className="px-4 py-2 rounded-xl border border-slate-200 text-xs font-semibold text-slate-700"
+                  className="w-full sm:w-auto px-4 py-2.5 rounded-xl border border-slate-200 text-xs font-bold text-slate-600 hover:bg-slate-100 transition-colors cursor-pointer"
                 >
                   Annulla
                 </button>
                 <button
                   type="submit"
                   disabled={saving}
-                  className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-sky-600 hover:bg-sky-700 text-white font-bold text-xs shadow-xs transition-colors cursor-pointer"
+                  className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-6 py-2.5 rounded-xl bg-sky-600 hover:bg-sky-700 text-white font-bold text-xs shadow-xs transition-colors cursor-pointer disabled:opacity-50"
                 >
                   <Save className="w-4 h-4" />
                   <span>{saving ? 'Salvataggio...' : 'Salva Evento'}</span>

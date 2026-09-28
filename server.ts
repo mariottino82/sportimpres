@@ -1,5 +1,6 @@
 import dotenv from 'dotenv';
 import path from 'path';
+import fs from 'fs';
 
 // Carica variabili d'ambiente da .env all'avvio (sia in dev che in produzione su Ubuntu)
 dotenv.config();
@@ -21,6 +22,84 @@ const PORT = 3000;
 
 app.use(express.json({ limit: '25mb' }));
 app.use(express.urlencoded({ extended: true, limit: '25mb' }));
+
+// Cartella pubblica per memorizzare e servire le locandine caricate (JPEG, PNG, PDF)
+const uploadsDir = path.resolve(process.cwd(), 'public', 'uploads');
+if (!fs.existsSync(uploadsDir)) {
+  fs.mkdirSync(uploadsDir, { recursive: true });
+}
+app.use('/uploads', express.static(uploadsDir));
+
+// Endpoint dedicato per l'upload di locandina in formato JPEG, PNG o PDF
+app.post('/api/upload-locandina', (req, res) => {
+  try {
+    const { fileName, fileData, fileType } = req.body;
+    if (!fileData) {
+      return res.status(400).json({ error: 'Nessun file fornito per la locandina' });
+    }
+
+    let ext = '.jpg';
+    let base64Clean = fileData;
+    let detectedType: 'image' | 'pdf' = fileType === 'pdf' ? 'pdf' : 'image';
+
+    if (fileData.startsWith('data:')) {
+      const match = fileData.match(/^data:([^;]+);base64,(.+)$/);
+      if (match) {
+        const mime = match[1].toLowerCase();
+        base64Clean = match[2];
+        if (mime.includes('pdf')) {
+          ext = '.pdf';
+          detectedType = 'pdf';
+        } else if (mime.includes('png')) {
+          ext = '.png';
+          detectedType = 'image';
+        } else if (mime.includes('webp')) {
+          ext = '.webp';
+          detectedType = 'image';
+        } else {
+          ext = '.jpg';
+          detectedType = 'image';
+        }
+      }
+    } else if (fileName) {
+      const lower = fileName.toLowerCase();
+      if (lower.endsWith('.pdf')) {
+        ext = '.pdf';
+        detectedType = 'pdf';
+      } else if (lower.endsWith('.png')) {
+        ext = '.png';
+        detectedType = 'image';
+      } else if (lower.endsWith('.webp')) {
+        ext = '.webp';
+        detectedType = 'image';
+      } else {
+        ext = '.jpg';
+        detectedType = 'image';
+      }
+    }
+
+    const cleanBaseName = (fileName || 'locandina')
+      .replace(/[^a-zA-Z0-9_\-\.]/g, '_')
+      .replace(/\.[^/.]+$/, '');
+    const uniqueFileName = `locandina-${Date.now()}-${cleanBaseName.slice(0, 40)}${ext}`;
+    const filePath = path.join(uploadsDir, uniqueFileName);
+
+    const buffer = Buffer.from(base64Clean, 'base64');
+    fs.writeFileSync(filePath, buffer);
+
+    const publicUrl = `/uploads/${uniqueFileName}`;
+    res.json({
+      success: true,
+      url: publicUrl,
+      fileName: fileName || uniqueFileName,
+      fileType: detectedType,
+      sizeBytes: buffer.length
+    });
+  } catch (err: any) {
+    console.error('[UPLOAD LOCANDINA] Errore salvataggio:', err);
+    res.status(500).json({ error: err.message || 'Errore durante il salvataggio della locandina' });
+  }
+});
 
 // In-memory slot locks (10 min expiry)
 const slotLocks = new Map<string, { lockedAt: number; sessionId: string }>();
@@ -243,6 +322,8 @@ app.post('/api/eventi', (req, res) => {
       bottone = 'Scopri',
       link = '',
       manifesto_url = '',
+      locandina_tipo = '',
+      locandina_nome = '',
       attivo = 1
     } = req.body;
 
@@ -251,8 +332,8 @@ app.post('/api/eventi', (req, res) => {
     }
 
     const result = run(`
-      INSERT INTO eventi (data, tipo, titolo, testo, luogo, ora, nota, bottone, link, manifesto_url, attivo, creato_il)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
+      INSERT INTO eventi (data, tipo, titolo, testo, luogo, ora, nota, bottone, link, manifesto_url, locandina_tipo, locandina_nome, attivo, creato_il)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
     `, [
       data,
       tipo,
@@ -264,6 +345,8 @@ app.post('/api/eventi', (req, res) => {
       bottone,
       link,
       manifesto_url,
+      locandina_tipo,
+      locandina_nome,
       attivo ? 1 : 0
     ]);
 
@@ -291,6 +374,8 @@ app.put('/api/eventi/:id', (req, res) => {
       bottone = existing.bottone,
       link = existing.link,
       manifesto_url = existing.manifesto_url,
+      locandina_tipo = existing.locandina_tipo !== undefined ? existing.locandina_tipo : '',
+      locandina_nome = existing.locandina_nome !== undefined ? existing.locandina_nome : '',
       attivo = existing.attivo
     } = req.body;
 
@@ -298,7 +383,7 @@ app.put('/api/eventi/:id', (req, res) => {
       UPDATE eventi SET
         data = ?, tipo = ?, titolo = ?, testo = ?,
         luogo = ?, ora = ?, nota = ?, bottone = ?,
-        link = ?, manifesto_url = ?, attivo = ?
+        link = ?, manifesto_url = ?, locandina_tipo = ?, locandina_nome = ?, attivo = ?
       WHERE id = ?
     `, [
       data,
@@ -311,6 +396,8 @@ app.put('/api/eventi/:id', (req, res) => {
       bottone,
       link,
       manifesto_url,
+      locandina_tipo,
+      locandina_nome,
       attivo ? 1 : 0,
       id
     ]);

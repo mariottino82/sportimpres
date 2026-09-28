@@ -129,12 +129,9 @@ export default function App() {
               <nav className="hidden md:flex items-center gap-6 text-sm font-semibold text-slate-600">
                 <a
                   href="#news"
-                  className="hover:text-sky-700 inline-flex items-center gap-1.5 transition-colors"
+                  className="hover:text-sky-700 transition-colors"
                 >
-                  <span>News ed Eventi</span>
-                  <span className="px-1.5 py-0.5 rounded-md bg-amber-100 text-amber-700 text-[10px] font-bold">
-                    NUOVO
-                  </span>
+                  News ed Eventi
                 </a>
                 <a href="#sportelli" className="hover:text-sky-700 transition-colors">
                   Sportelli

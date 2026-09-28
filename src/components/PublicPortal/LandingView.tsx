@@ -16,6 +16,10 @@ import {
   Info,
   Newspaper,
   X,
+  FileText,
+  Image as ImageIcon,
+  ExternalLink,
+  Download,
 } from 'lucide-react';
 
 interface LandingViewProps {
@@ -75,6 +79,8 @@ export const LandingView: React.FC<LandingViewProps> = ({
             link: d.link || '',
             hasManifesto: Boolean(d.manifesto_url || d.titolo?.toLowerCase().includes('manifesto')),
             manifesto_url: d.manifesto_url || '',
+            locandina_tipo: d.locandina_tipo || (d.manifesto_url?.toLowerCase().endsWith('.pdf') ? 'pdf' : (d.manifesto_url ? 'image' : '')),
+            locandina_nome: d.locandina_nome || '',
             attivo: d.attivo !== undefined ? d.attivo : 1,
           }));
           setEventiList(mapped);
@@ -580,14 +586,56 @@ export const LandingView: React.FC<LandingViewProps> = ({
                         </span>
                       )}
                     </div>
+
+                    {/* Miniatura o Blob Documento/Immagine quando disponibile */}
+                    {evento.manifesto_url && (
+                      evento.locandina_tipo === 'pdf' || evento.manifesto_url.toLowerCase().endsWith('.pdf') ? (
+                        /* Blob Documento PDF */
+                        <div className="mt-3.5 p-3 rounded-xl border border-red-200 bg-red-50/50 flex items-center gap-3 shadow-2xs group-hover:border-red-300 transition-all">
+                          <div className="w-10 h-10 rounded-lg bg-red-600 text-white flex flex-col items-center justify-center shrink-0 shadow-xs">
+                            <FileText className="w-5 h-5 text-white" />
+                            <span className="text-[7px] font-black uppercase tracking-wider">PDF</span>
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <div className="text-xs font-bold text-slate-800 truncate">
+                              {evento.locandina_nome || 'Locandina.pdf'}
+                            </div>
+                            <div className="text-[11px] text-slate-500 font-medium">
+                              Allegato PDF
+                            </div>
+                          </div>
+                          <div className="shrink-0 text-slate-400 group-hover:text-red-600 transition-colors">
+                            <ExternalLink className="w-3.5 h-3.5" />
+                          </div>
+                        </div>
+                      ) : (
+                        /* Miniatura Locandina Immagine JPEG / PNG */
+                        <div className="mt-3.5 rounded-xl border border-slate-200 overflow-hidden bg-slate-100 shadow-2xs group-hover:border-sky-300 transition-all">
+                          <div className="relative h-28 sm:h-32 w-full bg-slate-200/60 overflow-hidden">
+                            <img
+                              src={evento.manifesto_url}
+                              alt={evento.titolo}
+                              className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                              loading="lazy"
+                            />
+                          </div>
+                        </div>
+                      )
+                    )}
                   </div>
 
                   <div className="border-t border-slate-100 px-5 py-3 flex items-center justify-between">
                     <span className="text-xs text-slate-500">{evento.nota || ''}</span>
                     {isClickable ? (
-                      <span className="inline-flex items-center gap-1 text-xs font-bold text-sky-700">
-                        <Newspaper className="w-3.5 h-3.5" />
-                        <span>{evento.bottone || 'Vedi manifesto'} →</span>
+                      <span className="inline-flex items-center gap-1 text-xs font-bold text-sky-700 group-hover:text-sky-800">
+                        {evento.locandina_tipo === 'pdf' || evento.manifesto_url?.toLowerCase().endsWith('.pdf') ? (
+                          <FileText className="w-3.5 h-3.5 text-red-600" />
+                        ) : evento.manifesto_url ? (
+                          <ImageIcon className="w-3.5 h-3.5 text-emerald-600" />
+                        ) : (
+                          <Newspaper className="w-3.5 h-3.5" />
+                        )}
+                        <span>{evento.bottone || 'Vedi locandina'} →</span>
                       </span>
                     ) : (
                       <button
@@ -996,73 +1044,181 @@ export const LandingView: React.FC<LandingViewProps> = ({
         </div>
       </footer>
 
-      {/* 8. MANIFESTO MODAL */}
-      {manifestoEvent && (
-        <div
-          id="man-modal"
-          onClick={(ev) => {
-            if (ev.target === ev.currentTarget) setManifestoEvent(null);
-          }}
-          className="fixed inset-0 z-[60] bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4"
-        >
-          <div className="relative bg-white rounded-2xl shadow-2xl max-w-lg w-full max-h-[90vh] flex flex-col overflow-hidden">
-            <div className="flex items-center justify-between px-5 py-3 border-b border-slate-200">
-              <div>
-                <div className="text-[10px] font-bold text-sky-700 uppercase tracking-wider">
-                  {new Date(manifestoEvent.data).getDate()}{' '}
-                  {MESI_ESTESI_IT[new Date(manifestoEvent.data).getMonth()]}{' '}
-                  {new Date(manifestoEvent.data).getFullYear()} · {manifestoEvent.luogo}
-                </div>
-                <div className="font-display font-bold text-slate-900">{manifestoEvent.titolo}</div>
-              </div>
-              <button
-                type="button"
-                onClick={() => setManifestoEvent(null)}
-                className="w-9 h-9 rounded-full hover:bg-slate-100 text-slate-500 flex items-center justify-center text-xl cursor-pointer"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
+      {/* 8. MANIFESTO / LOCANDINA MODAL */}
+      {manifestoEvent && (() => {
+        const isPdf =
+          manifestoEvent.locandina_tipo === 'pdf' ||
+          manifestoEvent.manifesto_url?.toLowerCase().endsWith('.pdf') ||
+          Boolean(manifestoEvent.manifesto_url?.startsWith('data:application/pdf'));
 
-            <div className="overflow-auto bg-slate-100 flex-1 p-4 flex flex-col items-center justify-center">
-              <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm max-w-sm text-center">
-                <div className="w-12 h-12 rounded-full bg-sky-100 text-sky-700 flex items-center justify-center mx-auto mb-3">
-                  <Newspaper className="w-6 h-6" />
+        const isImage =
+          manifestoEvent.locandina_tipo === 'image' ||
+          Boolean(manifestoEvent.manifesto_url && /\.(jpe?g|png|webp)($|\?)/i.test(manifestoEvent.manifesto_url)) ||
+          Boolean(manifestoEvent.manifesto_url?.startsWith('data:image/'));
+
+        const hasPoster = Boolean(manifestoEvent.manifesto_url && (isPdf || isImage));
+
+        return (
+          <div
+            id="man-modal"
+            onClick={(ev) => {
+              if (ev.target === ev.currentTarget) setManifestoEvent(null);
+            }}
+            className="fixed inset-0 z-[60] bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-3 sm:p-5"
+          >
+            <div
+              className={`relative bg-white rounded-3xl shadow-2xl w-full max-h-[92vh] flex flex-col overflow-hidden transition-all ${
+                hasPoster ? 'max-w-3xl' : 'max-w-lg'
+              }`}
+            >
+              {/* Header */}
+              <div className="flex items-center justify-between px-5 py-3.5 border-b border-slate-200 bg-white shrink-0">
+                <div className="min-w-0 pr-3">
+                  <div className="text-[10px] font-extrabold text-sky-700 uppercase tracking-wider flex items-center gap-1.5">
+                    <span>
+                      {new Date(manifestoEvent.data).getDate()}{' '}
+                      {MESI_ESTESI_IT[new Date(manifestoEvent.data).getMonth()]}{' '}
+                      {new Date(manifestoEvent.data).getFullYear()}
+                    </span>
+                    {manifestoEvent.luogo && (
+                      <>
+                        <span>•</span>
+                        <span>{manifestoEvent.luogo}</span>
+                      </>
+                    )}
+                  </div>
+                  <div className="font-display font-bold text-slate-900 text-base truncate">
+                    {manifestoEvent.titolo}
+                  </div>
                 </div>
-                <h4 className="font-bold text-base text-slate-900 mb-2">{manifestoEvent.titolo}</h4>
-                <p className="text-xs text-slate-600 mb-4">{manifestoEvent.testo}</p>
-                <div className="inline-block px-3 py-1 rounded-full bg-emerald-50 text-emerald-700 text-xs font-bold border border-emerald-200">
-                  {manifestoEvent.nota} • Ore {manifestoEvent.ora}
+                <button
+                  type="button"
+                  onClick={() => setManifestoEvent(null)}
+                  className="w-9 h-9 rounded-full hover:bg-slate-100 text-slate-500 flex items-center justify-center text-xl cursor-pointer shrink-0"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              {/* Main Content Area */}
+              <div className="overflow-y-auto flex-1 p-4 sm:p-6 space-y-4 bg-slate-50">
+                {/* Visualizzatore Locandina PDF */}
+                {isPdf && manifestoEvent.manifesto_url && (
+                  <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-xs">
+                    <div className="px-4 py-2.5 bg-slate-100/80 border-b border-slate-200 flex items-center justify-between gap-3">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <FileText className="w-4 h-4 text-red-600 shrink-0" />
+                        <span className="text-xs font-bold text-slate-800 truncate">
+                          {manifestoEvent.locandina_nome || 'Documento PDF'}
+                        </span>
+                      </div>
+                      <a
+                        href={manifestoEvent.manifesto_url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-red-600 hover:bg-red-700 text-white text-xs font-bold shadow-xs transition-colors shrink-0"
+                      >
+                        <Download className="w-3.5 h-3.5" />
+                        <span>Scarica PDF</span>
+                      </a>
+                    </div>
+
+                    <div className="p-2 sm:p-3 bg-slate-100">
+                      <iframe
+                        src={manifestoEvent.manifesto_url}
+                        className="w-full h-80 sm:h-96 rounded-xl border border-slate-200 bg-white"
+                        title="Locandina PDF"
+                      />
+                    </div>
+                  </div>
+                )}
+
+                {/* Visualizzatore Locandina JPEG / Immagine */}
+                {isImage && manifestoEvent.manifesto_url && (
+                  <div className="rounded-2xl border border-slate-200 overflow-hidden bg-slate-900/5 flex items-center justify-center p-2 sm:p-4 max-h-[52vh] relative group">
+                    <img
+                      src={manifestoEvent.manifesto_url}
+                      alt={manifestoEvent.titolo}
+                      className="max-h-[48vh] max-w-full rounded-xl shadow-md object-contain border border-slate-200 bg-white"
+                    />
+                    <a
+                      href={manifestoEvent.manifesto_url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="absolute top-3 right-3 sm:top-4 sm:right-4 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-900/80 hover:bg-slate-900 text-white text-xs font-bold backdrop-blur-xs transition-all shadow-md cursor-pointer"
+                      title="Apri a schermo intero"
+                    >
+                      <ExternalLink className="w-3.5 h-3.5" />
+                      <span>Ingrandisci</span>
+                    </a>
+                  </div>
+                )}
+
+                {/* Dettagli e sintesi notizia/evento */}
+                <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-2xs space-y-3">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span
+                      className={`inline-block text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-md border ${
+                        TAG_STYLES[manifestoEvent.tipo] || TAG_STYLES.EVENTO
+                      }`}
+                    >
+                      {manifestoEvent.tipo}
+                    </span>
+                    {manifestoEvent.nota && (
+                      <span className="px-2.5 py-0.5 rounded-full bg-slate-100 text-slate-700 text-xs font-bold">
+                        {manifestoEvent.nota}
+                      </span>
+                    )}
+                    {manifestoEvent.ora && (
+                      <span className="inline-flex items-center gap-1 text-xs text-slate-600 font-semibold">
+                        <Clock className="w-3.5 h-3.5 text-sky-600" />
+                        <span>Ore {manifestoEvent.ora}</span>
+                      </span>
+                    )}
+                    {manifestoEvent.luogo && (
+                      <span className="inline-flex items-center gap-1 text-xs text-slate-600 font-semibold">
+                        <MapPin className="w-3.5 h-3.5 text-sky-600" />
+                        <span>{manifestoEvent.luogo}</span>
+                      </span>
+                    )}
+                  </div>
+
+                  <p className="text-sm text-slate-700 leading-relaxed whitespace-pre-line">
+                    {manifestoEvent.testo}
+                  </p>
                 </div>
               </div>
-            </div>
 
-            <div className="px-5 py-3 border-t border-slate-200 flex gap-2">
-              <button
-                type="button"
-                onClick={() => {
-                  const ev = manifestoEvent;
-                  setManifestoEvent(null);
-                  const found = SPORTELLI_LIST.find((s) =>
-                    ev.luogo && (
-                      s.comune.toLowerCase().includes(ev.luogo.toLowerCase()) ||
-                      ev.luogo.toLowerCase().includes(s.comune.toLowerCase())
-                    )
-                  );
-                  onStartBooking({
-                    initialSportelloId: found ? found.id : undefined,
-                    grantTitle: ev.titolo
-                  });
-                }}
-                className="flex-1 inline-flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-gradient-to-r from-sky-600 to-blue-700 hover:from-sky-700 hover:to-blue-800 text-white text-sm font-bold cursor-pointer transition-all"
-              >
-                <Calendar className="w-4 h-4" />
-                <span>Prenota un appuntamento {manifestoEvent.luogo ? `a ${manifestoEvent.luogo}` : ''}</span>
-              </button>
+              {/* Footer con CTA per prenotazione */}
+              <div className="px-5 py-3.5 border-t border-slate-200 bg-white flex gap-2 shrink-0">
+                <button
+                  type="button"
+                  onClick={() => {
+                    const ev = manifestoEvent;
+                    setManifestoEvent(null);
+                    const found = SPORTELLI_LIST.find(
+                      (s) =>
+                        ev.luogo &&
+                        (s.comune.toLowerCase().includes(ev.luogo.toLowerCase()) ||
+                          ev.luogo.toLowerCase().includes(s.comune.toLowerCase()))
+                    );
+                    onStartBooking({
+                      initialSportelloId: found ? found.id : undefined,
+                      grantTitle: ev.titolo,
+                    });
+                  }}
+                  className="flex-1 inline-flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-gradient-to-r from-sky-600 to-blue-700 hover:from-sky-700 hover:to-blue-800 text-white text-sm font-bold cursor-pointer transition-all shadow-xs"
+                >
+                  <Calendar className="w-4 h-4" />
+                  <span>
+                    Prenota un appuntamento {manifestoEvent.luogo ? `a ${manifestoEvent.luogo}` : 'presso lo sportello'}
+                  </span>
+                </button>
+              </div>
             </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
 
       {/* 9. FLOATING BUTTONS (DESKTOP) */}
       <div className="hidden md:flex fixed right-5 bottom-5 flex-col gap-3 z-50">

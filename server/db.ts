@@ -258,6 +258,7 @@ function initTables(db: Database.Database) {
 
   migrateSportelliColumns(db);
   migrateBandiColumns(db);
+  migrateEventiColumns(db);
   seedCrmOperatori(db);
   seedInitialData(db);
   seedEventi(db);
@@ -366,6 +367,23 @@ function migrateBandiColumns(db: Database.Database) {
     }
   } catch (e) {
     console.warn('Bandi migration warning:', e);
+  }
+}
+
+function migrateEventiColumns(db: Database.Database) {
+  try {
+    const cols = db.pragma('table_info(eventi)') as Array<{ name: string }>;
+    if (cols && cols.length) {
+      const colNames = cols.map(c => c.name);
+      if (!colNames.includes('locandina_tipo')) {
+        db.exec("ALTER TABLE eventi ADD COLUMN locandina_tipo TEXT DEFAULT ''");
+      }
+      if (!colNames.includes('locandina_nome')) {
+        db.exec("ALTER TABLE eventi ADD COLUMN locandina_nome TEXT DEFAULT ''");
+      }
+    }
+  } catch (e) {
+    console.warn('Eventi migration warning:', e);
   }
 }
 
