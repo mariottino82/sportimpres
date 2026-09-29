@@ -3,6 +3,10 @@ import type { Transporter } from 'nodemailer';
 import dotenv from 'dotenv';
 import path from 'path';
 import fs from 'fs';
+import { fileURLToPath } from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 export const DEFAULT_SMTP_CONFIG = {
   host: 'smtps.aruba.it',

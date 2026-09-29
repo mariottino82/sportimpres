@@ -2287,18 +2287,6 @@ app.post('/api/crm/maintenance/purge-test-data', (req, res) => {
 async function startServer() {
   await getDb();
 
-  // Diagnostica e verifica automatica della connessione SMTP all'avvio (sia in dev che su server di deploy)
-  try {
-    const smtpCheck = await verifySmtpConnection();
-    if (smtpCheck.success) {
-      console.log(`[EMAIL SERVICE] Server SMTP pronto e operativo: ${smtpCheck.host}:${smtpCheck.port} (${smtpCheck.user})`);
-    } else {
-      console.warn(`[EMAIL SERVICE AVVISO] Connessione SMTP all'avvio: ${smtpCheck.error || 'Verifica in corso'}`);
-    }
-  } catch (err: any) {
-    console.warn('[EMAIL SERVICE WARN] Errore verifica SMTP all\'avvio:', err?.message || err);
-  }
-
   if (process.env.NODE_ENV !== 'production') {
     const vite = await createViteServer({
       server: { middlewareMode: true },
@@ -2315,6 +2303,19 @@ async function startServer() {
 
   app.listen(PORT, '0.0.0.0', () => {
     console.log(`Sportello Imprese server running on http://0.0.0.0:${PORT}`);
+
+    // Diagnostica e verifica automatica della connessione SMTP asincrona (non blocca l'avvio della porta 3000)
+    verifySmtpConnection()
+      .then((smtpCheck) => {
+        if (smtpCheck.success) {
+          console.log(`[EMAIL SERVICE] Server SMTP pronto e operativo: ${smtpCheck.host}:${smtpCheck.port} (${smtpCheck.user})`);
+        } else {
+          console.warn(`[EMAIL SERVICE AVVISO] Connessione SMTP all'avvio: ${smtpCheck.error || 'Verifica in corso'}`);
+        }
+      })
+      .catch((err) => {
+        console.warn('[EMAIL SERVICE WARN] Errore verifica SMTP all\'avvio:', err?.message || err);
+      });
   });
 }
 
