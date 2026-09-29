@@ -14,8 +14,7 @@ import {
   LogOut,
   ExternalLink,
   User,
-  Newspaper,
-  Mail
+  Newspaper
 } from 'lucide-react';
 
 interface CrmNavbarProps {
@@ -57,11 +56,10 @@ export const CrmNavbar: React.FC<CrmNavbarProps> = ({
     { id: 'utenti', label: 'Anagrafica & 360°', icon: Users },
     { id: 'interazioni', label: 'Interazioni & Coda', icon: MessageSquare },
     { id: 'bandi', label: 'Bandi', icon: Award },
-    { id: 'eventi', label: 'News ed Eventi', icon: Newspaper },
+    { id: 'eventi', label: 'News', icon: Newspaper },
     { id: 'report', label: 'Report', icon: FileSpreadsheet },
-    { id: 'comunicazione', label: 'Comunicazione & Vetrina', icon: QrCode },
+    { id: 'comunicazione', label: 'Comunicazione', icon: QrCode },
     ...(canManageSportelli ? [{ id: 'sportelli', label: 'Sportelli', icon: MapPin }] : []),
-    ...(canManageSportelli ? [{ id: 'smtp', label: 'Email & SMTP', icon: Mail }] : []),
     ...(isAdmin ? [{ id: 'accessi', label: 'Accessi e Ruoli', icon: ShieldCheck }] : [])
   ];
 
