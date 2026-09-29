@@ -1,10 +1,6 @@
 import fs from 'fs';
 import path from 'path';
-import { fileURLToPath } from 'url';
 import Database from 'better-sqlite3';
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
 
 export type DbInstance = Database.Database;
 
@@ -382,10 +378,13 @@ export function syncSmtpConfig(db: Database.Database): void {
     }
 
     // 3. Se il file .env non esiste sul filesystem (es. container Cloud Run o git pull fresco), rigeneralo dal DB
+    const localDir = typeof __dirname !== 'undefined' ? __dirname : process.cwd();
     const envPaths = [
       path.resolve(process.cwd(), '.env'),
-      path.resolve(__dirname, '..', '.env'),
-      path.resolve(__dirname, '.env')
+      path.resolve(localDir, '..', '.env'),
+      path.resolve(localDir, '.env'),
+      '/var/www/sportello-imprese/.env',
+      '/var/www/sportello/.env'
     ];
     const envExists = envPaths.some(p => fs.existsSync(p));
     if (!envExists) {

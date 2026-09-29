@@ -3,10 +3,6 @@ import type { Transporter } from 'nodemailer';
 import dotenv from 'dotenv';
 import path from 'path';
 import fs from 'fs';
-import { fileURLToPath } from 'url';
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
 
 export const DEFAULT_SMTP_CONFIG = {
   host: 'smtps.aruba.it',
@@ -19,14 +15,24 @@ export const DEFAULT_SMTP_CONFIG = {
   replyTo: 'sportelloimprese@sviluppoitaliamolise.it'
 };
 
+const getLocalDir = (): string => {
+  try {
+    if (typeof __dirname !== 'undefined' && __dirname) return __dirname;
+  } catch {
+    // Ignore
+  }
+  return process.cwd();
+};
+
 /**
  * Legge la configurazione fallback persistita nel file smtp.config.json (se presente)
  */
 function readJsonFallbackConfig(): Record<string, string> {
+  const localDir = getLocalDir();
   const jsonPaths = [
     path.resolve(process.cwd(), 'server', 'smtp.config.json'),
-    path.resolve(__dirname, 'smtp.config.json'),
-    path.resolve(__dirname, '..', 'server', 'smtp.config.json'),
+    path.resolve(localDir, 'smtp.config.json'),
+    path.resolve(localDir, '..', 'server', 'smtp.config.json'),
     path.resolve(process.cwd(), 'smtp.config.json')
   ];
 
@@ -52,11 +58,13 @@ function readJsonFallbackConfig(): Record<string, string> {
  * da server/smtp.config.json o dai parametri predefiniti di produzione istituzionali.
  */
 export function reloadEnvFromAllSources(): void {
+  const localDir = getLocalDir();
   const candidatePaths = [
     path.resolve(process.cwd(), '.env'),
-    path.resolve(__dirname, '..', '.env'),
-    path.resolve(__dirname, '.env'),
+    path.resolve(localDir, '..', '.env'),
+    path.resolve(localDir, '.env'),
     path.resolve(process.cwd(), '..', '.env'),
+    '/var/www/sportello-imprese/.env',
     '/var/www/sportello/.env'
   ];
 
@@ -856,9 +864,12 @@ export async function saveSmtpConfig(newConfig: {
 
   // 2. Salva nel file .env (sia nella root che nella directory corrente)
   try {
+    const localDir = getLocalDir();
     const envPaths = [
       path.resolve(process.cwd(), '.env'),
-      path.resolve(__dirname, '..', '.env')
+      path.resolve(localDir, '..', '.env'),
+      '/var/www/sportello-imprese/.env',
+      '/var/www/sportello/.env'
     ];
     const envContent = [
       '# SMTP Configuration for Appointment Confirmation Emails (Aruba)',
@@ -890,10 +901,11 @@ export async function saveSmtpConfig(newConfig: {
 
   // 3. Salva nel file permanente server/smtp.config.json per sopravvivere ai deploy
   try {
+    const localDir = getLocalDir();
     const jsonPaths = [
       path.resolve(process.cwd(), 'server', 'smtp.config.json'),
-      path.resolve(__dirname, 'smtp.config.json'),
-      path.resolve(__dirname, '..', 'server', 'smtp.config.json')
+      path.resolve(localDir, 'smtp.config.json'),
+      path.resolve(localDir, '..', 'server', 'smtp.config.json')
     ];
     const jsonPayload = JSON.stringify({
       host: process.env.SMTP_HOST || 'smtps.aruba.it',
