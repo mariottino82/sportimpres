@@ -2,14 +2,128 @@ import nodemailer from 'nodemailer';
 import type { Transporter } from 'nodemailer';
 import dotenv from 'dotenv';
 import path from 'path';
+import fs from 'fs';
 
-// Assicura il caricamento delle variabili d'ambiente da .env sia in sviluppo che in produzione
-dotenv.config();
-try {
-  dotenv.config({ path: path.resolve(process.cwd(), '.env') });
-} catch {
-  // Ignora se inaccessibile
+export const DEFAULT_SMTP_CONFIG = {
+  host: 'smtps.aruba.it',
+  port: '465',
+  secure: 'true',
+  user: 'info@sviluppoitaliamolise.eu',
+  pass: 'Sporimp2026!',
+  fromName: 'Sportello Imprese Molise',
+  fromEmail: 'info@sviluppoitaliamolise.eu',
+  replyTo: 'sportelloimprese@sviluppoitaliamolise.it'
+};
+
+/**
+ * Legge la configurazione fallback persistita nel file smtp.config.json (se presente)
+ */
+function readJsonFallbackConfig(): Record<string, string> {
+  const jsonPaths = [
+    path.resolve(process.cwd(), 'server', 'smtp.config.json'),
+    path.resolve(__dirname, 'smtp.config.json'),
+    path.resolve(__dirname, '..', 'server', 'smtp.config.json'),
+    path.resolve(process.cwd(), 'smtp.config.json')
+  ];
+
+  for (const jp of jsonPaths) {
+    try {
+      if (fs.existsSync(jp)) {
+        const raw = fs.readFileSync(jp, 'utf-8');
+        const parsed = JSON.parse(raw);
+        if (parsed && typeof parsed === 'object') {
+          return parsed;
+        }
+      }
+    } catch {
+      // Ignora
+    }
+  }
+  return {};
 }
+
+/**
+ * Carica le variabili da tutte le posizioni possibili di .env (root di progetto, cartella superiore, cwd)
+ * e, se mancanti, le ripristina automaticamente dalla tabella 'configurazioni' del database SQLite sportello.db,
+ * da server/smtp.config.json o dai parametri predefiniti di produzione istituzionali.
+ */
+export function reloadEnvFromAllSources(): void {
+  const candidatePaths = [
+    path.resolve(process.cwd(), '.env'),
+    path.resolve(__dirname, '..', '.env'),
+    path.resolve(__dirname, '.env'),
+    path.resolve(process.cwd(), '..', '.env'),
+    '/var/www/sportello/.env'
+  ];
+
+  for (const envPath of candidatePaths) {
+    try {
+      if (fs.existsSync(envPath)) {
+        dotenv.config({ path: envPath, override: true });
+      }
+    } catch {
+      // Ignora
+    }
+  }
+
+  // 1. Se ancora non sono presenti i parametri SMTP, leggili dalla tabella 'configurazioni' di SQLite
+  if (!process.env.SMTP_HOST || !process.env.SMTP_PASS) {
+    try {
+      const dbPath = process.env.DATABASE_PATH || path.resolve(process.cwd(), 'sportello.db');
+      if (fs.existsSync(dbPath)) {
+        // eslint-disable-next-line @typescript-eslint/no-require-imports
+        const Database = require('better-sqlite3');
+        const db = new Database(dbPath);
+        const rows = db.prepare("SELECT chiave, valore FROM configurazioni WHERE chiave LIKE 'smtp_%'").all() as Array<{ chiave: string; valore: string }>;
+        const configMap: Record<string, string> = {};
+        for (const r of rows) configMap[r.chiave] = r.valore;
+
+        if (configMap.smtp_host) process.env.SMTP_HOST = configMap.smtp_host;
+        if (configMap.smtp_port) process.env.SMTP_PORT = configMap.smtp_port;
+        if (configMap.smtp_secure) process.env.SMTP_SECURE = configMap.smtp_secure;
+        if (configMap.smtp_user) process.env.SMTP_USER = configMap.smtp_user;
+        if (configMap.smtp_pass) process.env.SMTP_PASS = configMap.smtp_pass;
+        if (configMap.smtp_from_name) process.env.SMTP_FROM_NAME = configMap.smtp_from_name;
+        if (configMap.smtp_from_email) process.env.SMTP_FROM_EMAIL = configMap.smtp_from_email;
+        if (configMap.smtp_reply_to) process.env.SMTP_REPLY_TO = configMap.smtp_reply_to;
+        db.close();
+      }
+    } catch (e: any) {
+      console.warn('[EMAIL SERVICE] Impossibile recuperare fallback SMTP da database:', e?.message || e);
+    }
+  }
+
+  // 2. Se ancora mancano, leggili dal file persistente server/smtp.config.json
+  if (!process.env.SMTP_HOST || !process.env.SMTP_PASS) {
+    const jsonConfig = readJsonFallbackConfig();
+    if (jsonConfig.host && jsonConfig.pass) {
+      process.env.SMTP_HOST = jsonConfig.host;
+      process.env.SMTP_PORT = jsonConfig.port || '465';
+      process.env.SMTP_SECURE = jsonConfig.secure || 'true';
+      process.env.SMTP_USER = jsonConfig.user || 'info@sviluppoitaliamolise.eu';
+      process.env.SMTP_PASS = jsonConfig.pass;
+      process.env.SMTP_FROM_NAME = jsonConfig.fromName || 'Sportello Imprese Molise';
+      process.env.SMTP_FROM_EMAIL = jsonConfig.fromEmail || jsonConfig.user || 'info@sviluppoitaliamolise.eu';
+      process.env.SMTP_REPLY_TO = jsonConfig.replyTo || 'sportelloimprese@sviluppoitaliamolise.it';
+    }
+  }
+
+  // 3. Fallback di sicurezza: se dopo deploy o riavvio container mancano ancora, applica la configurazione ufficiale DEFAULT_SMTP_CONFIG
+  if (!process.env.SMTP_HOST || !process.env.SMTP_PASS) {
+    process.env.SMTP_HOST = DEFAULT_SMTP_CONFIG.host;
+    process.env.SMTP_PORT = DEFAULT_SMTP_CONFIG.port;
+    process.env.SMTP_SECURE = DEFAULT_SMTP_CONFIG.secure;
+    process.env.SMTP_USER = DEFAULT_SMTP_CONFIG.user;
+    process.env.SMTP_PASS = DEFAULT_SMTP_CONFIG.pass;
+    process.env.SMTP_FROM_NAME = DEFAULT_SMTP_CONFIG.fromName;
+    process.env.SMTP_FROM_EMAIL = DEFAULT_SMTP_CONFIG.fromEmail;
+    process.env.SMTP_REPLY_TO = DEFAULT_SMTP_CONFIG.replyTo;
+    console.log('[EMAIL SERVICE] Applicata configurazione SMTP ufficiale predefinita (Aruba smtps.aruba.it:465)');
+  }
+}
+
+// Inizializza subito le variabili al caricamento del modulo
+reloadEnvFromAllSources();
 
 export interface AppointmentEmailParams {
   to: string;
@@ -48,12 +162,9 @@ export function resolveSmtpSecure(rawSecure: string | undefined, port: number): 
 export function getEmailTransporter(forceReload = false): Transporter | null {
   if (transporter && !forceReload) return transporter;
 
-  if (forceReload) {
-    try {
-      dotenv.config({ path: path.resolve(process.cwd(), '.env'), override: true });
-    } catch {
-      // Ignora
-    }
+  // Se forceReload o mancano le variabili in process.env, ricarica da .env o SQLite
+  if (forceReload || !process.env.SMTP_HOST || !process.env.SMTP_PASS) {
+    reloadEnvFromAllSources();
   }
 
   const host = process.env.SMTP_HOST?.trim();
@@ -100,7 +211,7 @@ function generateIcsCalendar(params: AppointmentEmailParams): string {
   const toIcsDate = (d: Date) =>
     `${d.getUTCFullYear()}${pad(d.getUTCMonth() + 1)}${pad(d.getUTCDate())}T${pad(d.getUTCHours())}${pad(d.getUTCMinutes())}00Z`;
 
-  const summary = `Sportello Imprese Molise - Appuntamento ${params.codice}`;
+  const summary = `Sportello Imprese - Appuntamento ${params.codice}`;
   const description = `Colloquio orientamento: ${params.categoriaBisogno}. Sede: ${params.sportelloNome}, ${params.sportelloIndirizzo}. Tel: ${params.sportelloTelefono}`;
   const location = params.modalita === 'PRESENZA' ? `${params.sportelloNome}, ${params.sportelloIndirizzo}` : (params.videocallLink || 'Stanza Online');
 
@@ -419,7 +530,14 @@ PR Molise FESR FSE+ 2021-2027
       console.log(`[EMAIL SERVICE] Email di conferma inviata con successo da "${sender.name}" <${sender.address}> (Reply-To: "${replyTo.name}" <${replyTo.address}>) a ${params.to}. MessageId: ${info.messageId}`);
       return { success: true, messageId: info.messageId };
     } catch (err: any) {
-      console.warn(`[EMAIL SERVICE] Primo tentativo invio fallito a ${params.to} (${err.message}). Ritento ricreando la connessione SMTP...`);
+      console.warn(`[EMAIL SERVICE] Primo tentativo invio fallito a ${params.to} (${err.message}). Avvio procedura di recupero e failover automatico...`);
+      
+      const currentHost = process.env.SMTP_HOST || 'smtps.aruba.it';
+      const currentUser = process.env.SMTP_USER || 'info@sviluppoitaliamolise.eu';
+      const currentPass = process.env.SMTP_PASS || 'Sporimp2026!';
+      const currentPort = parseInt(process.env.SMTP_PORT || '465', 10);
+      
+      // Tentativo 2: Ricreazione istantanea della connessione con credenziali rinfrescate
       try {
         const freshTransporter = getEmailTransporter(true);
         if (freshTransporter) {
@@ -448,10 +566,60 @@ PR Molise FESR FSE+ 2021-2027
           return { success: true, messageId: retryInfo.messageId };
         }
       } catch (retryErr: any) {
-        console.error(`[EMAIL SERVICE] Errore definitivo nell'invio email a ${params.to}:`, retryErr.message);
-        return { success: false, error: retryErr.message };
+        console.warn(`[EMAIL SERVICE] Secondo tentativo fallito (${retryErr.message}). Tento failover su porta alternativa (465 SSL <-> 587 STARTTLS)...`);
       }
-      return { success: false, error: err.message };
+
+      // Tentativo 3: Failover intelligente porta (se eravamo su 465 prova 587 STARTTLS, altrimenti prova 465 SSL)
+      try {
+        const fallbackPort = currentPort === 465 ? 587 : 465;
+        const fallbackSecure = fallbackPort === 465;
+
+        const fallbackTransporter = nodemailer.createTransport({
+          host: currentHost,
+          port: fallbackPort,
+          secure: fallbackSecure,
+          auth: {
+            user: currentUser,
+            pass: currentPass
+          },
+          connectionTimeout: 15000,
+          greetingTimeout: 15000,
+          socketTimeout: 20000,
+          tls: {
+            rejectUnauthorized: false,
+            minVersion: 'TLSv1.2',
+            servername: currentHost
+          }
+        });
+
+        const fallbackInfo = await fallbackTransporter.sendMail({
+          from: {
+            name: sender.name,
+            address: sender.address
+          },
+          replyTo: {
+            name: replyTo.name,
+            address: replyTo.address
+          },
+          to: params.to,
+          subject: `Conferma Appuntamento #${params.codice} - Sportello Imprese Molise`,
+          text: textContent,
+          html: htmlContent,
+          attachments: [
+            {
+              filename: `appuntamento_${params.codice}.ics`,
+              content: icsContent,
+              contentType: 'text/calendar; charset=utf-8; method=REQUEST'
+            }
+          ]
+        });
+
+        console.log(`[EMAIL SERVICE FAILOVER] Email inviata con successo tramite failover sulla porta ${fallbackPort} a ${params.to}. MessageId: ${fallbackInfo.messageId}`);
+        return { success: true, messageId: fallbackInfo.messageId };
+      } catch (fallbackErr: any) {
+        console.error(`[EMAIL SERVICE] Errore definitivo nell'invio email a ${params.to}:`, fallbackErr.message);
+        return { success: false, error: fallbackErr.message || err.message };
+      }
     }
   } else {
     // Simulazione di invio (quando SMTP non è ancora stato configurato nel file .env)
@@ -585,4 +753,177 @@ export async function sendTestEmail(toEmail: string): Promise<{ success: boolean
     console.error(`[EMAIL TEST ERROR] Errore invio test email a ${toEmail}:`, err);
     return { success: false, error: err.message || String(err) };
   }
+}
+
+/**
+ * Restituisce i dettagli dell'attuale configurazione SMTP per la UI del CRM (con password offuscata)
+ */
+export async function getSmtpConfigDetails() {
+  reloadEnvFromAllSources();
+  const status = await verifySmtpConnection();
+
+  const envPaths = [
+    path.resolve(process.cwd(), '.env'),
+    path.resolve(__dirname, '..', '.env'),
+    path.resolve(__dirname, '.env')
+  ];
+  const envExists = envPaths.some(p => fs.existsSync(p));
+
+  let dbExists = false;
+  try {
+    const dbPath = process.env.DATABASE_PATH || path.resolve(process.cwd(), 'sportello.db');
+    if (fs.existsSync(dbPath)) {
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
+      const Database = require('better-sqlite3');
+      const db = new Database(dbPath);
+      const row = db.prepare("SELECT valore FROM configurazioni WHERE chiave = 'smtp_host'").get();
+      dbExists = Boolean(row);
+      db.close();
+    }
+  } catch {
+    // Ignora
+  }
+
+  const sender = resolveFromSender();
+  const replyTo = resolveReplyTo();
+
+  return {
+    ...status,
+    rawConfig: {
+      host: process.env.SMTP_HOST || 'smtps.aruba.it',
+      port: process.env.SMTP_PORT || '465',
+      secure: process.env.SMTP_SECURE || 'true',
+      user: process.env.SMTP_USER || 'info@sviluppoitaliamolise.eu',
+      hasPass: Boolean(process.env.SMTP_PASS && process.env.SMTP_PASS.trim().length > 0),
+      fromName: sender.name,
+      fromEmail: sender.address,
+      replyTo: replyTo.address
+    },
+    persistedInDb: dbExists,
+    persistedInEnv: envExists
+  };
+}
+
+/**
+ * Salva e sincronizza i nuovi parametri SMTP sia nel database SQLite che nel file .env,
+ * rigenera il transporter e testa la connessione
+ */
+export async function saveSmtpConfig(newConfig: {
+  host?: string;
+  port?: number | string;
+  secure?: boolean | string;
+  user?: string;
+  pass?: string;
+  fromName?: string;
+  fromEmail?: string;
+  replyTo?: string;
+}) {
+  if (newConfig.host) process.env.SMTP_HOST = newConfig.host.trim();
+  if (newConfig.port) process.env.SMTP_PORT = String(newConfig.port).trim();
+  if (newConfig.secure !== undefined) process.env.SMTP_SECURE = String(newConfig.secure).trim();
+  if (newConfig.user) process.env.SMTP_USER = newConfig.user.trim();
+  if (newConfig.pass && newConfig.pass.trim() !== '') process.env.SMTP_PASS = newConfig.pass.trim();
+  if (newConfig.fromName) process.env.SMTP_FROM_NAME = newConfig.fromName.trim();
+  if (newConfig.fromEmail) process.env.SMTP_FROM_EMAIL = newConfig.fromEmail.trim();
+  if (newConfig.replyTo) process.env.SMTP_REPLY_TO = newConfig.replyTo.trim();
+
+  // 1. Salva nel database SQLite (tabella configurazioni)
+  try {
+    const dbPath = process.env.DATABASE_PATH || path.resolve(process.cwd(), 'sportello.db');
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const Database = require('better-sqlite3');
+    const db = new Database(dbPath);
+    const setVal = (k: string, v: string) => {
+      db.prepare('INSERT OR REPLACE INTO configurazioni (chiave, valore) VALUES (?, ?)').run(k, v);
+    };
+    if (process.env.SMTP_HOST) setVal('smtp_host', process.env.SMTP_HOST);
+    if (process.env.SMTP_PORT) setVal('smtp_port', process.env.SMTP_PORT);
+    if (process.env.SMTP_SECURE) setVal('smtp_secure', process.env.SMTP_SECURE);
+    if (process.env.SMTP_USER) setVal('smtp_user', process.env.SMTP_USER);
+    if (process.env.SMTP_PASS) setVal('smtp_pass', process.env.SMTP_PASS);
+    if (process.env.SMTP_FROM_NAME) setVal('smtp_from_name', process.env.SMTP_FROM_NAME);
+    if (process.env.SMTP_FROM_EMAIL) setVal('smtp_from_email', process.env.SMTP_FROM_EMAIL);
+    if (process.env.SMTP_REPLY_TO) setVal('smtp_reply_to', process.env.SMTP_REPLY_TO);
+    db.close();
+    console.log('[EMAIL SERVICE] Parametri SMTP salvati con successo in sportello.db');
+  } catch (err: any) {
+    console.error('[EMAIL SERVICE] Errore salvataggio database:', err.message);
+  }
+
+  // 2. Salva nel file .env (sia nella root che nella directory corrente)
+  try {
+    const envPaths = [
+      path.resolve(process.cwd(), '.env'),
+      path.resolve(__dirname, '..', '.env')
+    ];
+    const envContent = [
+      '# SMTP Configuration for Appointment Confirmation Emails (Aruba)',
+      `SMTP_HOST=${process.env.SMTP_HOST || 'smtps.aruba.it'}`,
+      `SMTP_PORT=${process.env.SMTP_PORT || '465'}`,
+      `SMTP_SECURE=${process.env.SMTP_SECURE || 'true'}`,
+      `SMTP_USER=${process.env.SMTP_USER || 'info@sviluppoitaliamolise.eu'}`,
+      `SMTP_PASS=${process.env.SMTP_PASS || ''}`,
+      `SMTP_FROM_NAME="${process.env.SMTP_FROM_NAME || 'Sportello Imprese Molise'}"`,
+      `SMTP_FROM_EMAIL=${process.env.SMTP_FROM_EMAIL || process.env.SMTP_USER || 'info@sviluppoitaliamolise.eu'}`,
+      `SMTP_REPLY_TO=${process.env.SMTP_REPLY_TO || 'sportelloimprese@sviluppoitaliamolise.it'}`,
+      '',
+      'DATABASE_PATH=sportello.db',
+      'SEED_SAMPLE_DATA=false',
+      'PURGE_SAMPLE_DATA=false'
+    ].join('\n');
+
+    for (const p of envPaths) {
+      try {
+        fs.writeFileSync(p, envContent, 'utf-8');
+      } catch {
+        // Ignora
+      }
+    }
+    console.log('[EMAIL SERVICE] File .env aggiornato con successo');
+  } catch (err: any) {
+    console.error('[EMAIL SERVICE] Errore salvataggio .env:', err.message);
+  }
+
+  // 3. Salva nel file permanente server/smtp.config.json per sopravvivere ai deploy
+  try {
+    const jsonPaths = [
+      path.resolve(process.cwd(), 'server', 'smtp.config.json'),
+      path.resolve(__dirname, 'smtp.config.json'),
+      path.resolve(__dirname, '..', 'server', 'smtp.config.json')
+    ];
+    const jsonPayload = JSON.stringify({
+      host: process.env.SMTP_HOST || 'smtps.aruba.it',
+      port: process.env.SMTP_PORT || '465',
+      secure: process.env.SMTP_SECURE || 'true',
+      user: process.env.SMTP_USER || 'info@sviluppoitaliamolise.eu',
+      pass: process.env.SMTP_PASS || '',
+      fromName: process.env.SMTP_FROM_NAME || 'Sportello Imprese Molise',
+      fromEmail: process.env.SMTP_FROM_EMAIL || process.env.SMTP_USER || 'info@sviluppoitaliamolise.eu',
+      replyTo: process.env.SMTP_REPLY_TO || 'sportelloimprese@sviluppoitaliamolise.it'
+    }, null, 2);
+
+    for (const jp of jsonPaths) {
+      try {
+        const dir = path.dirname(jp);
+        if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+        fs.writeFileSync(jp, jsonPayload, 'utf-8');
+      } catch {
+        // Ignora
+      }
+    }
+    console.log('[EMAIL SERVICE] File smtp.config.json salvato per persistenza su deploy');
+  } catch (err: any) {
+    console.warn('[EMAIL SERVICE] Errore salvataggio smtp.config.json:', err.message);
+  }
+
+  // 4. Ricarica il transporter e testa la connessione
+  getEmailTransporter(true);
+  const testConn = await verifySmtpConnection();
+  return {
+    success: testConn.success,
+    status: testConn,
+    message: testConn.success
+      ? 'Configurazione SMTP salvata con successo e connessione verificata!'
+      : `Configurazione salvata, ma la verifica SMTP ha restituito: ${testConn.error || 'Errore connessione'}`
+  };
 }

@@ -262,10 +262,154 @@ function initTables(db: Database.Database) {
   seedCrmOperatori(db);
   seedInitialData(db);
   seedEventi(db);
+  syncSmtpConfig(db);
 
   // Rimozione controllata dei dati fittizi di prova in produzione
   if (process.env.NODE_ENV === 'production' || process.env.PURGE_SAMPLE_DATA === 'true') {
     purgeSampleTestData(db);
+  }
+}
+
+/**
+ * Assicura che le credenziali SMTP siano persistite nel database SQLite (tabella configurazioni)
+ * e nel file .env locale, così da sopravvivere a ogni deploy, git pull o riavvio del server.
+ */
+export function syncSmtpConfig(db: Database.Database): void {
+  try {
+    const getVal = (k: string): string | null => {
+      const row = db.prepare('SELECT valore FROM configurazioni WHERE chiave = ?').get(k) as { valore: string } | undefined;
+      return row ? row.valore : null;
+    };
+    const setVal = (k: string, v: string) => {
+      db.prepare('INSERT OR REPLACE INTO configurazioni (chiave, valore) VALUES (?, ?)').run(k, v);
+    };
+
+    // 1. Se process.env contiene credenziali SMTP valide, salvale nel database SQLite
+    const envHost = process.env.SMTP_HOST?.trim();
+    const envUser = process.env.SMTP_USER?.trim();
+    const envPass = process.env.SMTP_PASS?.trim();
+
+    if (envHost && envUser && envPass) {
+      setVal('smtp_host', envHost);
+      setVal('smtp_port', process.env.SMTP_PORT?.trim() || '465');
+      setVal('smtp_secure', process.env.SMTP_SECURE?.trim() || 'true');
+      setVal('smtp_user', envUser);
+      setVal('smtp_pass', envPass);
+      if (process.env.SMTP_FROM_NAME?.trim()) setVal('smtp_from_name', process.env.SMTP_FROM_NAME.trim());
+      if (process.env.SMTP_FROM_EMAIL?.trim()) setVal('smtp_from_email', process.env.SMTP_FROM_EMAIL.trim());
+      if (process.env.SMTP_REPLY_TO?.trim()) setVal('smtp_reply_to', process.env.SMTP_REPLY_TO.trim());
+    } else {
+      // 2. Se process.env non ha i valori (dopo deploy o restart senza .env), caricali da SQLite in process.env
+      const dbHost = getVal('smtp_host');
+      const dbPort = getVal('smtp_port') || '465';
+      const dbSecure = getVal('smtp_secure') || 'true';
+      const dbUser = getVal('smtp_user');
+      const dbPass = getVal('smtp_pass');
+      const dbFromName = getVal('smtp_from_name') || 'Sportello Imprese Molise';
+      const dbFromEmail = getVal('smtp_from_email') || dbUser || 'info@sviluppoitaliamolise.eu';
+      const dbReplyTo = getVal('smtp_reply_to') || 'sportelloimprese@sviluppoitaliamolise.it';
+
+      if (dbHost && dbUser && dbPass) {
+        process.env.SMTP_HOST = dbHost;
+        process.env.SMTP_PORT = dbPort;
+        process.env.SMTP_SECURE = dbSecure;
+        process.env.SMTP_USER = dbUser;
+        process.env.SMTP_PASS = dbPass;
+        process.env.SMTP_FROM_NAME = dbFromName;
+        process.env.SMTP_FROM_EMAIL = dbFromEmail;
+        process.env.SMTP_REPLY_TO = dbReplyTo;
+        console.log('[DATABASE] Credenziali SMTP ripristinate con successo dal database SQLite in memoria process.env');
+      } else {
+        // 2b. Se sia process.env che SQLite sono vuoti (es. dopo nuovo deploy / container pulito),
+        // recupera da server/smtp.config.json o applica i parametri istituzionali Aruba
+        let fallbackConfig: any = {
+          host: 'smtps.aruba.it',
+          port: '465',
+          secure: 'true',
+          user: 'info@sviluppoitaliamolise.eu',
+          pass: 'Sporimp2026!',
+          from_name: 'Sportello Imprese Molise',
+          from_email: 'info@sviluppoitaliamolise.eu',
+          reply_to: 'sportelloimprese@sviluppoitaliamolise.it'
+        };
+
+        const jsonFile = path.resolve(process.cwd(), 'server', 'smtp.config.json');
+        if (fs.existsSync(jsonFile)) {
+          try {
+            const parsed = JSON.parse(fs.readFileSync(jsonFile, 'utf-8'));
+            if (parsed.host && parsed.pass) {
+              fallbackConfig = {
+                host: parsed.host,
+                port: parsed.port || '465',
+                secure: parsed.secure || 'true',
+                user: parsed.user || 'info@sviluppoitaliamolise.eu',
+                pass: parsed.pass,
+                from_name: parsed.fromName || 'Sportello Imprese Molise',
+                from_email: parsed.fromEmail || parsed.user || 'info@sviluppoitaliamolise.eu',
+                reply_to: parsed.replyTo || 'sportelloimprese@sviluppoitaliamolise.it'
+              };
+            }
+          } catch {
+            // Ignora
+          }
+        }
+
+        // Salva nel database SQLite
+        setVal('smtp_host', fallbackConfig.host);
+        setVal('smtp_port', fallbackConfig.port);
+        setVal('smtp_secure', fallbackConfig.secure);
+        setVal('smtp_user', fallbackConfig.user);
+        setVal('smtp_pass', fallbackConfig.pass);
+        setVal('smtp_from_name', fallbackConfig.from_name);
+        setVal('smtp_from_email', fallbackConfig.from_email);
+        setVal('smtp_reply_to', fallbackConfig.reply_to);
+
+        // Applica a process.env
+        process.env.SMTP_HOST = fallbackConfig.host;
+        process.env.SMTP_PORT = fallbackConfig.port;
+        process.env.SMTP_SECURE = fallbackConfig.secure;
+        process.env.SMTP_USER = fallbackConfig.user;
+        process.env.SMTP_PASS = fallbackConfig.pass;
+        process.env.SMTP_FROM_NAME = fallbackConfig.from_name;
+        process.env.SMTP_FROM_EMAIL = fallbackConfig.from_email;
+        process.env.SMTP_REPLY_TO = fallbackConfig.reply_to;
+        console.log('[DATABASE] Credenziali SMTP predefinite seminate con successo nel database SQLite e process.env');
+      }
+    }
+
+    // 3. Se il file .env non esiste sul filesystem (es. container Cloud Run o git pull fresco), rigeneralo dal DB
+    const envPaths = [
+      path.resolve(process.cwd(), '.env'),
+      path.resolve(__dirname, '..', '.env'),
+      path.resolve(__dirname, '.env')
+    ];
+    const envExists = envPaths.some(p => fs.existsSync(p));
+    if (!envExists) {
+      const activeHost = process.env.SMTP_HOST || getVal('smtp_host');
+      const activeUser = process.env.SMTP_USER || getVal('smtp_user');
+      const activePass = process.env.SMTP_PASS || getVal('smtp_pass');
+      if (activeHost && activeUser && activePass) {
+        const fileContent = [
+          '# File .env autogenerato da sportello.db per persistenza deploy',
+          `SMTP_HOST=${activeHost}`,
+          `SMTP_PORT=${process.env.SMTP_PORT || getVal('smtp_port') || '465'}`,
+          `SMTP_SECURE=${process.env.SMTP_SECURE || getVal('smtp_secure') || 'true'}`,
+          `SMTP_USER=${activeUser}`,
+          `SMTP_PASS=${activePass}`,
+          `SMTP_FROM_NAME="${process.env.SMTP_FROM_NAME || getVal('smtp_from_name') || 'Sportello Imprese Molise'}"`,
+          `SMTP_FROM_EMAIL=${process.env.SMTP_FROM_EMAIL || getVal('smtp_from_email') || activeUser}`,
+          `SMTP_REPLY_TO=${process.env.SMTP_REPLY_TO || getVal('smtp_reply_to') || 'sportelloimprese@sviluppoitaliamolise.it'}`,
+          '',
+          'DATABASE_PATH=sportello.db',
+          'SEED_SAMPLE_DATA=false',
+          'PURGE_SAMPLE_DATA=false'
+        ].join('\n');
+        fs.writeFileSync(envPaths[0], fileContent, 'utf-8');
+        console.log('[DATABASE] File .env rigenerato automaticamente sul disco dal database SQLite');
+      }
+    }
+  } catch (err: any) {
+    console.warn('[DATABASE] Errore sincronizzazione SMTP da database:', err.message);
   }
 }
 

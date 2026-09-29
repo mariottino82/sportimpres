@@ -15,7 +15,13 @@ import crypto from 'crypto';
 import { createServer as createViteServer } from 'vite';
 import { getDb, queryAll, queryOne, run, purgeSampleTestData } from './server/db.js';
 import { matchBandiForProfile } from './server/gemini.js';
-import { sendAppointmentConfirmationEmail, verifySmtpConnection, sendTestEmail } from './server/emailService.js';
+import {
+  sendAppointmentConfirmationEmail,
+  verifySmtpConnection,
+  sendTestEmail,
+  getSmtpConfigDetails,
+  saveSmtpConfig
+} from './server/emailService.js';
 
 const app = express();
 const PORT = 3000;
@@ -928,11 +934,22 @@ app.post('/api/prenotazioni/:tokenOrCode/rinvia-email', async (req, res) => {
 // SMTP DIAGNOSTICS & TEST ENDPOINTS
 // ----------------------------------------------------
 
-// Verifica lo stato del server SMTP e la connessione (TLS handshake e login)
+// Verifica lo stato del server SMTP e la configurazione completa
 app.get('/api/smtp/status', async (req, res) => {
   try {
-    const status = await verifySmtpConnection();
-    res.json(status);
+    const details = await getSmtpConfigDetails();
+    res.json(details);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Salva e sincronizza i parametri SMTP (database SQLite + file .env) e ricarica il transporter
+app.post('/api/smtp/config', async (req, res) => {
+  try {
+    const { host, port, secure, user, pass, fromName, fromEmail, replyTo } = req.body;
+    const result = await saveSmtpConfig({ host, port, secure, user, pass, fromName, fromEmail, replyTo });
+    res.json(result);
   } catch (err: any) {
     res.status(500).json({ error: err.message });
   }
@@ -2269,6 +2286,18 @@ app.post('/api/crm/maintenance/purge-test-data', (req, res) => {
 
 async function startServer() {
   await getDb();
+
+  // Diagnostica e verifica automatica della connessione SMTP all'avvio (sia in dev che su server di deploy)
+  try {
+    const smtpCheck = await verifySmtpConnection();
+    if (smtpCheck.success) {
+      console.log(`[EMAIL SERVICE] Server SMTP pronto e operativo: ${smtpCheck.host}:${smtpCheck.port} (${smtpCheck.user})`);
+    } else {
+      console.warn(`[EMAIL SERVICE AVVISO] Connessione SMTP all'avvio: ${smtpCheck.error || 'Verifica in corso'}`);
+    }
+  } catch (err: any) {
+    console.warn('[EMAIL SERVICE WARN] Errore verifica SMTP all\'avvio:', err?.message || err);
+  }
 
   if (process.env.NODE_ENV !== 'production') {
     const vite = await createViteServer({
