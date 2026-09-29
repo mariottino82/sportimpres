@@ -63,6 +63,7 @@ interface SportelloFormData {
   online_attivo: number;
   link_videocall: string;
   note_accesso: string;
+  data_inizio_attivita: string;
 }
 
 const DEFAULT_DAYS_OPTIONS = [
@@ -167,7 +168,8 @@ export const SportelliManagerView: React.FC<SportelliManagerViewProps> = ({
     responsabile_telefono: '0874 011011',
     online_attivo: 1,
     link_videocall: '',
-    note_accesso: ''
+    note_accesso: '',
+    data_inizio_attivita: ''
   });
 
   const [selectedDays, setSelectedDays] = useState<string[]>(['Lunedì', 'Mercoledì', 'Venerdì']);
@@ -233,7 +235,8 @@ export const SportelliManagerView: React.FC<SportelliManagerViewProps> = ({
       responsabile_telefono: '0874 011011',
       online_attivo: 1,
       link_videocall: 'https://meet.jit.si/SportelloImpreseMolise_Nuovo',
-      note_accesso: 'Presidio presso Municipio / Sede Istituzionale. Accessibile a persone con ridotta mobilità.'
+      note_accesso: 'Presidio presso Municipio / Sede Istituzionale. Accessibile a persone con ridotta mobilità.',
+      data_inizio_attivita: ''
     });
     setIsFormOpen(true);
   };
@@ -276,7 +279,8 @@ export const SportelliManagerView: React.FC<SportelliManagerViewProps> = ({
       responsabile_telefono: s.responsabile_telefono || s.telefono || '0874 011011',
       online_attivo: s.online_attivo !== undefined ? s.online_attivo : 1,
       link_videocall: s.link_videocall || `https://meet.jit.si/SportelloImpreseMolise_${s.id}`,
-      note_accesso: s.note_accesso || ''
+      note_accesso: s.note_accesso || '',
+      data_inizio_attivita: s.data_inizio_attivita || ''
     });
     setIsFormOpen(true);
   };
@@ -900,6 +904,12 @@ export const SportelliManagerView: React.FC<SportelliManagerViewProps> = ({
                       <span className={`w-1.5 h-1.5 rounded-full ${isAttivo ? 'bg-emerald-500 animate-pulse' : 'bg-rose-500'}`} />
                       <span>{isAttivo ? 'Attivo' : 'Sospeso'}</span>
                     </button>
+                    {s.data_inizio_attivita && (
+                      <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-amber-50 text-amber-800 border border-amber-300">
+                        <Calendar className="w-3 h-3 text-amber-600" />
+                        <span>Attivo dal {s.data_inizio_attivita.split('-').reverse().join('/')}</span>
+                      </span>
+                    )}
                   </div>
 
                   {/* Title & Comune */}
@@ -1071,6 +1081,12 @@ export const SportelliManagerView: React.FC<SportelliManagerViewProps> = ({
                       <td className="py-3 px-4">
                         <div className="font-bold text-slate-800">{s.giorni}</div>
                         <div className="text-[11px] text-slate-500">{s.orario} • {s.cadenza}</div>
+                        {s.data_inizio_attivita && (
+                          <div className="text-[10px] text-amber-700 font-bold flex items-center gap-1 mt-0.5">
+                            <Calendar className="w-3 h-3 text-amber-600" />
+                            <span>Attivo dal {s.data_inizio_attivita.split('-').reverse().join('/')}</span>
+                          </div>
+                        )}
                       </td>
                       <td className="py-3 px-3">
                         <button
@@ -1348,6 +1364,36 @@ export const SportelliManagerView: React.FC<SportelliManagerViewProps> = ({
                 <div className="text-xs font-bold text-emerald-800 uppercase tracking-wide border-b border-slate-200 pb-1 flex items-center gap-1.5">
                   <Calendar className="w-3.5 h-3.5" />
                   <span>3. Giorni e Fasce Orarie di Apertura</span>
+                </div>
+
+                {/* Data di Inizio Attività e Apertura Prenotazioni */}
+                <div className="bg-sky-50/80 border border-sky-200 rounded-xl p-3.5 space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <label className="block text-xs font-bold text-sky-950 flex items-center gap-1.5">
+                      <Calendar className="w-3.5 h-3.5 text-sky-600" />
+                      <span>Data di Inizio Attività / Apertura Prenotazioni</span>
+                    </label>
+                    {formData.data_inizio_attivita && (
+                      <button
+                        type="button"
+                        onClick={() => setFormData({ ...formData, data_inizio_attivita: '' })}
+                        className="text-[10px] text-sky-700 hover:text-sky-900 underline font-medium cursor-pointer"
+                      >
+                        Reimposta ad "Attivo da subito"
+                      </button>
+                    )}
+                  </div>
+                  <input
+                    type="date"
+                    value={formData.data_inizio_attivita || ''}
+                    onChange={(e) => setFormData({ ...formData, data_inizio_attivita: e.target.value })}
+                    className="w-full px-3 py-2 bg-white border border-sky-300 rounded-xl text-xs font-semibold text-slate-900 focus:outline-none focus:ring-2 focus:ring-sky-500"
+                  />
+                  <p className="text-[11px] text-sky-900/80 leading-relaxed">
+                    {formData.data_inizio_attivita
+                      ? `Gli utenti potranno prenotare appuntamenti per questo sportello solo a partire dal ${formData.data_inizio_attivita.split('-').reverse().join('/')}.`
+                      : 'Lascia vuoto per rendere lo sportello immediatamente attivo e prenotabile a partire da oggi.'}
+                  </p>
                 </div>
 
                 <div>

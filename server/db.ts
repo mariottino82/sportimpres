@@ -83,7 +83,8 @@ function initTables(db: Database.Database) {
       orario TEXT NOT NULL,
       cadenza TEXT NOT NULL,
       attivo INTEGER DEFAULT 1,
-      operatori_assegnati TEXT DEFAULT ''
+      operatori_assegnati TEXT DEFAULT '',
+      data_inizio_attivita TEXT DEFAULT ''
     );
 
     CREATE TABLE IF NOT EXISTS utenti (
@@ -442,6 +443,9 @@ function migrateSportelliColumns(db: Database.Database) {
       }
       if (!colNames.includes('provincia')) {
         db.exec("ALTER TABLE sportelli ADD COLUMN provincia TEXT DEFAULT ''");
+      }
+      if (!colNames.includes('data_inizio_attivita')) {
+        db.exec("ALTER TABLE sportelli ADD COLUMN data_inizio_attivita TEXT DEFAULT ''");
       }
 
       db.exec(`

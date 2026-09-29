@@ -172,7 +172,8 @@ app.post('/api/sportelli', (req, res) => {
       online_attivo = 1,
       link_videocall = '',
       note_accesso = '',
-      provincia = 'CB'
+      provincia = 'CB',
+      data_inizio_attivita = ''
     } = req.body;
 
     if (!comune || !nome || !indirizzo || !giorni) {
@@ -187,13 +188,13 @@ app.post('/api/sportelli', (req, res) => {
         comune, nome, indirizzo, telefono, email, lat, lng,
         giorni, orario, cadenza, attivo, operatori_assegnati,
         responsabile_nome, responsabile_email, responsabile_telefono,
-        online_attivo, link_videocall, note_accesso, provincia
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        online_attivo, link_videocall, note_accesso, provincia, data_inizio_attivita
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `, [
       comune, nome, indirizzo, telefono, email, finalLat, finalLng,
       giorni, orario, cadenza, attivo ? 1 : 0, operatori_assegnati,
       responsabile_nome, responsabile_email, responsabile_telefono,
-      online_attivo ? 1 : 0, link_videocall, note_accesso, provincia
+      online_attivo ? 1 : 0, link_videocall, note_accesso, provincia, (data_inizio_attivita || '').trim()
     ]);
 
     const created = queryOne('SELECT * FROM sportelli WHERE id = ?', [result.lastInsertRowid]);
@@ -231,7 +232,8 @@ app.put('/api/sportelli/:id', (req, res) => {
       online_attivo = existing.online_attivo,
       link_videocall = existing.link_videocall,
       note_accesso = existing.note_accesso,
-      provincia = existing.provincia
+      provincia = existing.provincia,
+      data_inizio_attivita = existing.data_inizio_attivita || ''
     } = req.body;
 
     const finalLat = typeof lat === 'number' ? lat : parseFloat(lat) || existing.lat;
@@ -243,7 +245,8 @@ app.put('/api/sportelli/:id', (req, res) => {
         lat = ?, lng = ?, giorni = ?, orario = ?, cadenza = ?,
         attivo = ?, operatori_assegnati = ?, responsabile_nome = ?,
         responsabile_email = ?, responsabile_telefono = ?,
-        online_attivo = ?, link_videocall = ?, note_accesso = ?, provincia = ?
+        online_attivo = ?, link_videocall = ?, note_accesso = ?, provincia = ?,
+        data_inizio_attivita = ?
       WHERE id = ?
     `, [
       comune, nome, indirizzo, telefono, email,
@@ -251,6 +254,7 @@ app.put('/api/sportelli/:id', (req, res) => {
       attivo ? 1 : 0, operatori_assegnati, responsabile_nome,
       responsabile_email, responsabile_telefono,
       online_attivo ? 1 : 0, link_videocall, note_accesso, provincia,
+      (data_inizio_attivita || '').trim(),
       id
     ]);
 
@@ -443,6 +447,17 @@ app.get('/api/sportelli/:id/slots', (req, res) => {
       return res.json({ date, open: false, reason: 'Sportello temporaneamente inattivo per nuove prenotazioni', slots: [] });
     }
 
+    // Verifica se lo sportello ha una data di inizio attività futura
+    if (sportello.data_inizio_attivita && date < sportello.data_inizio_attivita) {
+      const formattedDate = sportello.data_inizio_attivita.split('-').reverse().join('/');
+      return res.json({
+        date,
+        open: false,
+        reason: `Sportello attivo e prenotabile a partire dal ${formattedDate}`,
+        slots: []
+      });
+    }
+
     // Parse date day of week in Italian
     const targetDate = new Date(date + 'T12:00:00Z');
     const dayOfWeek = targetDate.getUTCDay(); // 0 = Dom, 1 = Lun, 2 = Mar, 3 = Mer, 4 = Gio, 5 = Ven, 6 = Sab
@@ -564,6 +579,23 @@ app.post('/api/prenotazioni', async (req, res) => {
 
     if (!tipo || !anagrafica || !motivo || !sportelloId || !datetime || !modalita) {
       return res.status(400).json({ error: 'Campi obbligatori mancanti' });
+    }
+
+    const targetSportello = queryOne('SELECT * FROM sportelli WHERE id = ?', [sportelloId]);
+    if (!targetSportello) {
+      return res.status(404).json({ error: 'Sportello non trovato' });
+    }
+    if (targetSportello.attivo === 0) {
+      return res.status(400).json({ error: 'Questo sportello è temporaneamente inattivo per nuove prenotazioni' });
+    }
+    if (targetSportello.data_inizio_attivita) {
+      const dateOnly = datetime.substring(0, 10);
+      if (dateOnly < targetSportello.data_inizio_attivita) {
+        const formattedDate = targetSportello.data_inizio_attivita.split('-').reverse().join('/');
+        return res.status(400).json({
+          error: `Questo sportello è attivo e prenotabile a partire dal ${formattedDate}. Si prega di selezionare una data valida.`
+        });
+      }
     }
 
     // 1. Check if user already exists (by email or piva or phone)

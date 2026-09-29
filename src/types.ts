@@ -52,6 +52,7 @@ export interface Sportello {
   note_accesso?: string;
   provincia?: string;
   distanzaKm?: number;
+  data_inizio_attivita?: string; // YYYY-MM-DD: data da cui lo sportello è attivo e prenotabile
 }
 
 export interface UserProfileImpresa {
