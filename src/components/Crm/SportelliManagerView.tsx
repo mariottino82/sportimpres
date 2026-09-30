@@ -36,6 +36,7 @@ import {
   ArrowRight
 } from 'lucide-react';
 import { Sportello, CrmRole, CrmOperator } from '../../types';
+import { getUpcomingDatesForSportello } from '../../utils/sportelloSchedule';
 
 interface SportelliManagerViewProps {
   currentUser?: CrmOperator | null;
@@ -444,10 +445,11 @@ export const SportelliManagerView: React.FC<SportelliManagerViewProps> = ({
   // Open slot test modal
   const handleOpenSlotTest = (s: Sportello) => {
     setTestingSportello(s);
-    // Find tomorrow's date or a sensible date
-    const tomorrow = new Date();
-    tomorrow.setDate(tomorrow.getDate() + 1);
-    const dateStr = tomorrow.toISOString().split('T')[0];
+    // Trova la prima data valida effettiva di apertura (rispetta giorni, attivazione e cadenza quindicinale)
+    const validDates = getUpcomingDatesForSportello(s, 1);
+    const dateStr = validDates.length > 0
+      ? validDates[0]
+      : (s.data_inizio_attivita || new Date().toISOString().split('T')[0]);
     setTestDate(dateStr);
     fetchTestSlots(s.id, dateStr);
   };
@@ -1633,10 +1635,32 @@ export const SportelliManagerView: React.FC<SportelliManagerViewProps> = ({
                   <button
                     onClick={() => fetchTestSlots(testingSportello.id, testDate)}
                     disabled={testSlotLoading}
-                    className="px-3 py-2 bg-sky-600 text-white rounded-xl text-xs font-bold hover:bg-sky-500"
+                    className="px-3 py-2 bg-sky-600 text-white rounded-xl text-xs font-bold hover:bg-sky-500 cursor-pointer"
                   >
                     {testSlotLoading ? 'Calcolo...' : 'Ricalcola'}
                   </button>
+                </div>
+
+                {/* Prossime date calcolate in base a giorni, data attivazione e cadenza quindicinale */}
+                <div className="mt-2 flex flex-wrap items-center gap-1.5 text-[11px] text-slate-500">
+                  <span className="font-semibold text-slate-700">Aperture previste:</span>
+                  {getUpcomingDatesForSportello(testingSportello, 4).map((d) => (
+                    <button
+                      key={d}
+                      type="button"
+                      onClick={() => {
+                        setTestDate(d);
+                        fetchTestSlots(testingSportello.id, d);
+                      }}
+                      className={`px-2 py-0.5 rounded-lg border text-[11px] font-semibold transition-colors cursor-pointer ${
+                        testDate === d
+                          ? 'bg-sky-600 text-white border-sky-600 shadow-2xs'
+                          : 'bg-white text-slate-700 border-slate-200 hover:border-sky-300'
+                      }`}
+                    >
+                      {new Date(d + 'T12:00:00Z').toLocaleDateString('it-IT', { day: '2-digit', month: 'short' })}
+                    </button>
+                  ))}
                 </div>
               </div>
 

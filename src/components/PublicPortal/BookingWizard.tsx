@@ -4,6 +4,7 @@ import { MoliseMap } from '../MoliseMap';
 import { PdfPromemoriaModal } from '../PdfPromemoriaModal';
 import { MOLISE_COMUNI } from '../../data/moliseComuni';
 import { Sportello, UserType, Modality, Appointment } from '../../types';
+import { getUpcomingDatesForSportello } from '../../utils/sportelloSchedule';
 import {
   Building2,
   User,
@@ -469,30 +470,16 @@ export const BookingWizard: React.FC<BookingWizardProps> = ({
     }
   };
 
-  // Helper date generator for opening days in Sep / Oct 2026 (or next 60 days)
-  const getUpcomingDatesForSportello = (sportello: Sportello) => {
-    const dates: string[] = [];
-    const today = new Date();
-    // Start from tomorrow
-    const cur = new Date(today);
-    cur.setDate(cur.getDate() + 1);
-
-    const dayNames = ['Domenica', 'Lunedì', 'Martedì', 'Mercoledì', 'Giovedì', 'Venerdì', 'Sabato'];
-
-    for (let i = 0; i < 45; i++) {
-      const d = new Date(cur);
-      d.setDate(d.getDate() + i);
-      const dayName = dayNames[d.getDay()];
-
-      if ((sportello?.giorni || '').toLowerCase().includes(dayName.toLowerCase())) {
-        const yyyy = d.getFullYear();
-        const mm = String(d.getMonth() + 1).padStart(2, '0');
-        const dd = String(d.getDate()).padStart(2, '0');
-        dates.push(`${yyyy}-${mm}-${dd}`);
+  // Sincronizza la prima data disponibile quando viene selezionato uno sportello
+  useEffect(() => {
+    if (selectedSportello) {
+      const validDates = getUpcomingDatesForSportello(selectedSportello, 8);
+      if (validDates.length > 0 && (!selectedDate || !validDates.includes(selectedDate))) {
+        setSelectedDate(validDates[0]);
+        setSelectedSlot('');
       }
     }
-    return dates;
-  };
+  }, [selectedSportello]);
 
   // Step names for progress indicator
   const stepTitles = [
@@ -1569,11 +1556,22 @@ export const BookingWizard: React.FC<BookingWizardProps> = ({
 
             {/* Upcoming Opening Days Tabs */}
             <div>
-              <label className="block text-xs font-bold text-slate-700 mb-2">
-                1. Seleziona il giorno di apertura (Aperto: {selectedSportello.giorni})
-              </label>
+              <div className="flex flex-wrap items-center justify-between gap-1 mb-2">
+                <label className="block text-xs font-bold text-slate-700">
+                  1. Seleziona il giorno di apertura (Aperto: {selectedSportello.giorni})
+                </label>
+                {(selectedSportello.cadenza || '').toLowerCase().includes('quindicin') ? (
+                  <span className="text-[11px] font-bold text-purple-700 bg-purple-50 px-2.5 py-0.5 rounded-full border border-purple-200">
+                    Cadenza Quindicinale (ogni 14 giorni)
+                  </span>
+                ) : (
+                  <span className="text-[11px] font-medium text-slate-500 bg-slate-100 px-2 py-0.5 rounded-full">
+                    {selectedSportello.cadenza || 'Settimanale'}
+                  </span>
+                )}
+              </div>
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                {getUpcomingDatesForSportello(selectedSportello).slice(0, 8).map((dStr) => {
+                {getUpcomingDatesForSportello(selectedSportello, 8).map((dStr) => {
                   const dateObj = new Date(dStr + 'T12:00:00Z');
                   const isSelected = selectedDate === dStr;
                   return (
@@ -1584,7 +1582,7 @@ export const BookingWizard: React.FC<BookingWizardProps> = ({
                         setSelectedDate(dStr);
                         setSelectedSlot('');
                       }}
-                      className={`p-3 rounded-xl text-left border transition-all text-xs ${
+                      className={`p-3 rounded-xl text-left border transition-all text-xs cursor-pointer ${
                         isSelected
                           ? 'bg-sky-50 border-sky-500 shadow-xs ring-1 ring-sky-500'
                           : 'bg-white border-slate-200 hover:border-slate-300'

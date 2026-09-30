@@ -430,6 +430,88 @@ app.delete('/api/eventi/:id', (req, res) => {
 });
 
 
+// Funzione universale per verificare se una data è aperta per uno sportello (considerando giorni, data attivazione e cadenza quindicinale)
+function checkSportelloDateOpen(
+  sportello: any,
+  dateStr: string
+): { open: boolean; reason?: string } {
+  if (sportello.attivo === 0) {
+    return { open: false, reason: 'Sportello temporaneamente inattivo per nuove prenotazioni' };
+  }
+
+  // 1. Verifica data di inizio attività
+  if (sportello.data_inizio_attivita && dateStr < sportello.data_inizio_attivita) {
+    const formattedDate = sportello.data_inizio_attivita.split('-').reverse().join('/');
+    return {
+      open: false,
+      reason: `Sportello attivo e prenotabile a partire dal ${formattedDate}`
+    };
+  }
+
+  const targetDate = new Date(dateStr + 'T12:00:00Z');
+  if (isNaN(targetDate.getTime())) {
+    return { open: false, reason: 'Data non valida' };
+  }
+
+  const dayOfWeek = targetDate.getUTCDay(); // 0 = Dom, 1 = Lun, 2 = Mar, 3 = Mer, 4 = Gio, 5 = Ven, 6 = Sab
+  const dayNames = ['Domenica', 'Lunedì', 'Martedì', 'Mercoledì', 'Giovedì', 'Venerdì', 'Sabato'];
+  const currentDayName = dayNames[dayOfWeek];
+
+  // 2. Verifica giorno della settimana di apertura
+  const isOpenDay = (sportello.giorni || '').toLowerCase().includes(currentDayName.toLowerCase());
+  if (!isOpenDay) {
+    return { open: false, reason: `Chiuso il ${currentDayName}` };
+  }
+
+  // 3. Verifica Cadenza (Quindicinale / ogni 14 giorni)
+  const isQuindicinale = (sportello.cadenza || '').toLowerCase().includes('quindicin');
+  if (isQuindicinale) {
+    const anchorDateStr = sportello.data_inizio_attivita || '2026-10-01';
+    const anchor = new Date(anchorDateStr + 'T12:00:00Z');
+
+    let firstActiveDate = new Date(anchor);
+    for (let i = 0; i < 7; i++) {
+      const candidate = new Date(anchor);
+      candidate.setUTCDate(candidate.getUTCDate() + i);
+      const candidateDayName = dayNames[candidate.getUTCDay()];
+      if ((sportello.giorni || '').toLowerCase().includes(candidateDayName.toLowerCase())) {
+        firstActiveDate = candidate;
+        break;
+      }
+    }
+
+    const firstActiveStr = firstActiveDate.toISOString().split('T')[0];
+    if (dateStr < firstActiveStr) {
+      const formatted = firstActiveStr.split('-').reverse().join('/');
+      return {
+        open: false,
+        reason: `Prima apertura quindicinale prevista il ${formatted}`
+      };
+    }
+
+    const diffMs = targetDate.getTime() - firstActiveDate.getTime();
+    const diffDays = Math.round(diffMs / (1000 * 60 * 60 * 24));
+    const diffWeeks = Math.round(diffDays / 7);
+
+    // Se la settimana dal giorno di avvio è dispari, è la settimana di pausa
+    if (diffWeeks % 2 !== 0) {
+      const nextOpenDate = new Date(targetDate);
+      nextOpenDate.setUTCDate(nextOpenDate.getUTCDate() + 7);
+      const nextOpenFormatted = nextOpenDate.toLocaleDateString('it-IT', {
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric'
+      });
+      return {
+        open: false,
+        reason: `Chiuso per cadenza quindicinale (prossima apertura il ${nextOpenFormatted})`
+      };
+    }
+  }
+
+  return { open: true };
+}
+
 // Calculate available 30-min slots for a sportello on a given date (YYYY-MM-DD)
 app.get('/api/sportelli/:id/slots', (req, res) => {
   try {
@@ -443,33 +525,18 @@ app.get('/api/sportelli/:id/slots', (req, res) => {
     const sportello = queryOne('SELECT * FROM sportelli WHERE id = ?', [id]);
     if (!sportello) return res.status(404).json({ error: 'Sportello non trovato' });
 
-    if (sportello.attivo === 0) {
-      return res.json({ date, open: false, reason: 'Sportello temporaneamente inattivo per nuove prenotazioni', slots: [] });
-    }
-
-    // Verifica se lo sportello ha una data di inizio attività futura
-    if (sportello.data_inizio_attivita && date < sportello.data_inizio_attivita) {
-      const formattedDate = sportello.data_inizio_attivita.split('-').reverse().join('/');
+    // Verifica stato, data di attivazione e cadenza quindicinale
+    const openCheck = checkSportelloDateOpen(sportello, date);
+    if (!openCheck.open) {
       return res.json({
         date,
         open: false,
-        reason: `Sportello attivo e prenotabile a partire dal ${formattedDate}`,
+        reason: openCheck.reason || 'Sportello chiuso in questa data',
         slots: []
       });
     }
 
-    // Parse date day of week in Italian
     const targetDate = new Date(date + 'T12:00:00Z');
-    const dayOfWeek = targetDate.getUTCDay(); // 0 = Dom, 1 = Lun, 2 = Mar, 3 = Mer, 4 = Gio, 5 = Ven, 6 = Sab
-    const dayNames = ['Domenica', 'Lunedì', 'Martedì', 'Mercoledì', 'Giovedì', 'Venerdì', 'Sabato'];
-    const currentDayName = dayNames[dayOfWeek];
-
-    // Check if sportello opens on this day
-    const isOpenDay = sportello.giorni.toLowerCase().includes(currentDayName.toLowerCase());
-
-    if (!isOpenDay) {
-      return res.json({ date, open: false, reason: `Chiuso il ${currentDayName}`, slots: [] });
-    }
 
     // Determine slots based on sportello.orario (e.g. "09:30 - 12:00" or custom)
     let startHour = 9;
@@ -585,17 +652,13 @@ app.post('/api/prenotazioni', async (req, res) => {
     if (!targetSportello) {
       return res.status(404).json({ error: 'Sportello non trovato' });
     }
-    if (targetSportello.attivo === 0) {
-      return res.status(400).json({ error: 'Questo sportello è temporaneamente inattivo per nuove prenotazioni' });
-    }
-    if (targetSportello.data_inizio_attivita) {
-      const dateOnly = datetime.substring(0, 10);
-      if (dateOnly < targetSportello.data_inizio_attivita) {
-        const formattedDate = targetSportello.data_inizio_attivita.split('-').reverse().join('/');
-        return res.status(400).json({
-          error: `Questo sportello è attivo e prenotabile a partire dal ${formattedDate}. Si prega di selezionare una data valida.`
-        });
-      }
+
+    const dateOnly = datetime.substring(0, 10);
+    const dateCheck = checkSportelloDateOpen(targetSportello, dateOnly);
+    if (!dateCheck.open) {
+      return res.status(400).json({
+        error: `Data non disponibile per la prenotazione: ${dateCheck.reason || 'Sportello chiuso'}`
+      });
     }
 
     // 1. Check if user already exists (by email or piva or phone)
