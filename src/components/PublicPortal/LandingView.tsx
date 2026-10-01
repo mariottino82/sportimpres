@@ -160,27 +160,31 @@ export const LandingView: React.FC<LandingViewProps> = ({
   useEffect(() => {
     let isMounted = true;
 
-    Promise.allSettled([
-      fetch('/api/sportelli').then((res) => (res.ok ? res.json() : null)),
-      fetch('/api/webtv/video').then((res) => (res.ok ? res.json() : null)),
-      fetch('/api/eventi').then((res) => (res.ok ? res.json() : null)),
-    ]).then(([sportelliRes, videosRes, eventiRes]) => {
-      if (!isMounted) return;
-
-      if (sportelliRes.status === 'fulfilled' && Array.isArray(sportelliRes.value) && sportelliRes.value.length > 0) {
-        const active = sportelliRes.value.filter((s: any) => s.attivo === undefined || s.attivo === 1 || s.attivo === true);
+    fetch('/api/sportelli')
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (!isMounted || !Array.isArray(data) || data.length === 0) return;
+        const active = data.filter((s: any) => s.attivo === undefined || s.attivo === 1 || s.attivo === true);
         if (active.length > 0) {
           setSportelliData(active);
           setSelectedSportello((prev) => active.find((s: any) => s.id === prev?.id) || active[0] || prev);
         }
-      }
+      })
+      .catch(() => {});
 
-      if (videosRes.status === 'fulfilled' && Array.isArray(videosRes.value)) {
-        setVideos(videosRes.value);
-      }
+    fetch('/api/webtv/video')
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (!isMounted || !Array.isArray(data)) return;
+        setVideos(data);
+      })
+      .catch(() => {});
 
-      if (eventiRes.status === 'fulfilled' && Array.isArray(eventiRes.value) && eventiRes.value.length > 0) {
-        const mapped: EventoItem[] = eventiRes.value.map((d: any) => ({
+    fetch('/api/eventi')
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (!isMounted || !Array.isArray(data) || data.length === 0) return;
+        const mapped: EventoItem[] = data.map((d: any) => ({
           id: d.id,
           data: d.data,
           tipo: d.tipo || 'EVENTO',
@@ -198,9 +202,8 @@ export const LandingView: React.FC<LandingViewProps> = ({
           attivo: d.attivo !== undefined ? d.attivo : 1,
         }));
         setEventiList(mapped);
-      }
-      setLoadingEventi(false);
-    });
+      })
+      .catch(() => {});
 
     return () => {
       isMounted = false;
@@ -297,7 +300,6 @@ export const LandingView: React.FC<LandingViewProps> = ({
         id="prenota"
         className="relative overflow-hidden bg-gradient-to-b from-sky-100/70 via-white to-slate-50 border-b border-sky-100 py-10 sm:py-16 px-4 sm:px-6"
       >
-        <div className="absolute -bottom-24 left-1/2 w-[500px] h-[300px] rounded-full bg-amber-100/60 blur-3xl pointer-events-none -translate-x-1/2"></div>
         <div className="relative max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-12 gap-10 items-center">
           {/* Hero Left Column */}
           <div className="lg:col-span-7 space-y-5">
@@ -348,7 +350,7 @@ export const LandingView: React.FC<LandingViewProps> = ({
               <button
                 type="button"
                 onClick={() => onStartBooking()}
-                className="cta-blink inline-flex items-center justify-center gap-3 px-8 py-5 rounded-2xl bg-gradient-to-r from-sky-600 to-blue-700 hover:from-sky-700 hover:to-blue-800 text-white font-bold text-lg sm:text-xl shadow-xl shadow-sky-600/30 transition-all hover:-translate-y-0.5 ring-4 ring-sky-200/60 cursor-pointer"
+                className="inline-flex items-center justify-center gap-3 px-8 py-5 rounded-2xl bg-gradient-to-r from-sky-600 to-blue-700 hover:from-sky-700 hover:to-blue-800 hover:shadow-2xl hover:scale-[1.01] active:scale-[0.99] text-white font-bold text-lg sm:text-xl shadow-xl shadow-sky-600/30 transition-all ring-4 ring-sky-200/60 cursor-pointer"
               >
                 <Calendar className="w-6 h-6" />
                 <span>Prenota un appuntamento</span>
@@ -383,11 +385,8 @@ export const LandingView: React.FC<LandingViewProps> = ({
                 onClick={handleWebTvClick}
                 className="group relative aspect-video overflow-hidden cursor-pointer bg-slate-950"
               >
-                {/* Background ambient lighting */}
-                <div className="absolute -top-10 -left-10 w-48 h-48 rounded-full bg-purple-600/40 blur-3xl"></div>
-                <div className="absolute top-1/3 -right-12 w-52 h-52 rounded-full bg-orange-500/30 blur-3xl"></div>
-                <div className="absolute -bottom-16 left-1/4 w-56 h-56 rounded-full bg-sky-500/30 blur-3xl"></div>
-                <div className="absolute -bottom-10 -left-8 w-32 h-32 rounded-full bg-emerald-500/25 blur-2xl"></div>
+                {/* Background ambient lighting - optimized gradient */}
+                <div className="absolute inset-0 bg-gradient-to-tr from-purple-950/80 via-slate-950 to-indigo-950/80 pointer-events-none"></div>
                 <div className="absolute inset-0 bg-[radial-gradient(circle_at_1px_1px,rgba(255,255,255,.08)_1px,transparent_0)] bg-[size:14px_14px]"></div>
 
                 {/* Badge top-left & top-right */}
@@ -416,7 +415,6 @@ export const LandingView: React.FC<LandingViewProps> = ({
 
                 {/* Big Center-Right Play Button */}
                 <div className="absolute right-[12%] top-1/2 -translate-y-[60%] flex items-center justify-center z-10">
-                  <span className="absolute w-16 h-16 sm:w-20 sm:h-20 rounded-full bg-white/20 animate-ping"></span>
                   <span className="relative w-14 h-14 sm:w-16 sm:h-16 rounded-full bg-white/95 shadow-2xl shadow-black/40 flex items-center justify-center transition-transform duration-200 group-hover:scale-110">
                     <Play className="w-6 h-6 sm:w-7 sm:h-7 ml-1 text-red-600 fill-red-600" />
                   </span>

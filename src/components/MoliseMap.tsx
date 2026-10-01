@@ -121,10 +121,7 @@ export const MoliseMap: React.FC<MoliseMapProps> = ({
         <svg width="1" height="1">
           <g class="mk" style="cursor:pointer;opacity:${isDimmed ? 0.25 : 1};transition:opacity .2s">
             ${isSelected ? `
-              <circle r="24" fill="${A.col}" opacity=".18">
-                <animate attributeName="r" values="16;28;16" dur="2s" repeatCount="indefinite"/>
-                <animate attributeName="opacity" values=".35;0;.35" dur="2s" repeatCount="indefinite"/>
-              </circle>
+              <circle r="22" fill="${A.col}" opacity=".25"/>
             ` : ''}
             <circle r="${isSelected ? 16 : 12}" fill="${isSelected ? A.col : '#ffffff'}" stroke="${A.col}" stroke-width="${isSelected ? 4 : 3}"/>
             <g fill="${isSelected ? '#ffffff' : A.col}">

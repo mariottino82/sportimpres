@@ -117,7 +117,7 @@ export default function App() {
     <div className="min-h-screen flex flex-col bg-slate-50 text-slate-900 font-sans selection:bg-sky-500 selection:text-white w-full max-w-full overflow-x-clip">
       
       {/* Header Sticky Group: Institutional Banner + Navigation Bar permanently fixed on scroll */}
-      <div className={mode !== 'admin' ? "sticky top-0 z-50 w-full bg-white shadow-xs transform-gpu will-change-transform" : "w-full"}>
+      <div className={mode !== 'admin' ? "sticky top-0 z-50 w-full bg-white shadow-xs" : "w-full"}>
         {/* 1. Institutional Banner at top */}
         <InstitutionalBanner />
 
@@ -160,13 +160,10 @@ export default function App() {
               {mode === 'public' && (
                 <button
                   onClick={() => handleStartBooking()}
-                  className="cta-blink animate-lampeggio flex items-center gap-1.5 px-3.5 sm:px-5 py-2 sm:py-2.5 rounded-xl bg-gradient-to-r from-sky-600 to-blue-700 hover:from-sky-700 hover:to-blue-800 text-white text-xs sm:text-sm font-bold shadow-lg shadow-sky-600/25 transition-all shrink-0 cursor-pointer whitespace-nowrap"
+                  className="flex items-center gap-2 px-3.5 sm:px-5 py-2 sm:py-2.5 rounded-xl bg-gradient-to-r from-sky-600 to-blue-700 hover:from-sky-700 hover:to-blue-800 hover:shadow-md hover:scale-[1.02] active:scale-[0.98] text-white text-xs sm:text-sm font-bold shadow-md shadow-sky-600/25 transition-all shrink-0 cursor-pointer whitespace-nowrap"
                   title="Prenota subito un appuntamento"
                 >
-                  <span className="relative flex h-2 w-2 shrink-0">
-                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-300 opacity-75"></span>
-                    <span className="relative inline-flex rounded-full h-2 w-2 bg-amber-400"></span>
-                  </span>
+                  <span className="w-2 h-2 rounded-full bg-amber-400 shrink-0"></span>
                   <Calendar className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0" />
                   <span>Prenota Ora</span>
                 </button>
