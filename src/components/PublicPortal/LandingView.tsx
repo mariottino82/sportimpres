@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Logo } from '../Logo';
 import { MoliseMap } from '../MoliseMap';
 import { PolicyModal } from './PolicyModal';
-import { SPORTELLI_LIST, AREE, ORDINE_SPORTELLI, nomeBreve, SportelloInfo } from '../../data/sportelliList';
+import { SPORTELLI_LIST, AREE, ORDINE_SPORTELLI, nomeBreve, getSportelloComune, getSportelloArea, SportelloInfo } from '../../data/sportelliList';
 import { EVENTI_DEFAULT, MESI_IT, MESI_ESTESI_IT, EventoItem } from '../../data/portalEvents';
 import { WebTvVideo } from '../../types';
 import {
@@ -43,6 +43,7 @@ export const LandingView: React.FC<LandingViewProps> = ({
   onWatchVideo,
   onOpenCrmEventi,
 }) => {
+  const [sportelliData, setSportelliData] = useState<SportelloInfo[]>(SPORTELLI_LIST);
   const [selectedSportello, setSelectedSportello] = useState<SportelloInfo>(SPORTELLI_LIST[1]); // Campobasso default
   const [filtroArea, setFiltroArea] = useState<string>('');
   const [activeEventTab, setActiveEventTab] = useState<string>('');
@@ -54,6 +55,19 @@ export const LandingView: React.FC<LandingViewProps> = ({
   const [loadingEventi, setLoadingEventi] = useState<boolean>(true);
 
   useEffect(() => {
+    fetch('/api/sportelli')
+      .then((res) => res.json())
+      .then((data) => {
+        if (Array.isArray(data) && data.length > 0) {
+          const active = data.filter((s: any) => s.attivo === undefined || s.attivo === 1 || s.attivo === true);
+          if (active.length > 0) {
+            setSportelliData(active);
+            setSelectedSportello((prev) => active.find((s: any) => s.id === prev.id) || active[0] || prev);
+          }
+        }
+      })
+      .catch(() => {});
+
     fetch('/api/webtv/video')
       .then((res) => res.json())
       .then((data) => setVideos(Array.isArray(data) ? data : []))
@@ -139,7 +153,8 @@ export const LandingView: React.FC<LandingViewProps> = ({
     }
   };
 
-  const selectedAreaConfig = AREE[selectedSportello.area];
+  const areaKey = getSportelloArea(selectedSportello);
+  const selectedAreaConfig = AREE[areaKey] || AREE['CB'];
 
   return (
     <div className="flex flex-col min-h-screen bg-slate-50 text-slate-900">
@@ -672,7 +687,7 @@ export const LandingView: React.FC<LandingViewProps> = ({
               <span>Presidio Capillare del Territorio</span>
             </div>
             <h2 className="text-2xl sm:text-3xl font-extrabold text-slate-950 font-display">
-              I 12 Sportelli di Sviluppo Italia Molise
+              I {sportelliData.length} Sportelli di Sviluppo Italia Molise
             </h2>
             <p className="text-sm text-slate-600 max-w-2xl mt-1">
               Trova lo sportello più vicino a te. Ogni sede offre assistenza specializzata gratuita in presenza.
@@ -696,7 +711,7 @@ export const LandingView: React.FC<LandingViewProps> = ({
               <div className="flex flex-wrap items-center justify-between gap-3 px-5 pt-4">
                 <div className="flex items-center gap-2 text-xs text-slate-600 font-semibold">
                   <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"></span>
-                  <span>12 Sportelli sul territorio del Molise</span>
+                  <span>{sportelliData.length} Sportelli attivi sul territorio del Molise</span>
                 </div>
                 {/* Area filter buttons */}
                 <div id="area-filter" className="flex flex-wrap gap-1.5">
@@ -739,6 +754,7 @@ export const LandingView: React.FC<LandingViewProps> = ({
 
               {/* The Leaflet Map Canvas */}
               <MoliseMap
+                sportelli={sportelliData}
                 selectedSportello={selectedSportello}
                 filtroArea={filtroArea}
                 onSelectSportello={(s) => setSelectedSportello(s)}
@@ -766,7 +782,7 @@ export const LandingView: React.FC<LandingViewProps> = ({
                       {selectedAreaConfig.nome} · {selectedSportello.cadenza}
                     </div>
                     <h3 className="font-display font-extrabold text-2xl text-slate-950 leading-tight">
-                      {selectedSportello.nome}
+                      {getSportelloComune(selectedSportello)}
                     </h3>
                   </div>
                 </div>
@@ -832,7 +848,7 @@ export const LandingView: React.FC<LandingViewProps> = ({
         {/* 3 Area Groups Grid List (#sp-list) */}
         <div id="sp-list" className="mt-6 grid grid-cols-1 md:grid-cols-3 gap-4">
           {(Object.entries(AREE) as ['IS' | 'CB' | 'CO', typeof AREE['IS']][]).map(([k, cfg]) => {
-            const items = ORDINE_SPORTELLI.filter((s) => s.area === k);
+            const items = sportelliData.filter((s) => (s.area || getSportelloArea(s)) === k);
             const isDimmed = Boolean(filtroArea && filtroArea !== k);
 
             return (
@@ -853,6 +869,7 @@ export const LandingView: React.FC<LandingViewProps> = ({
                 <div className="divide-y divide-slate-100">
                   {items.map((s) => {
                     const isSelected = s.id === selectedSportello.id;
+                    const comuneName = getSportelloComune(s);
                     return (
                       <div
                         key={s.id}
@@ -879,7 +896,7 @@ export const LandingView: React.FC<LandingViewProps> = ({
                           </span>
                           <span className="flex-1 min-w-0">
                             <span className="block text-sm font-bold text-slate-900 truncate">
-                              {s.nome}
+                              {comuneName}
                             </span>
                             <span className="block text-[11px] text-slate-500 truncate">
                               {s.giorni} · {s.orario}
@@ -893,7 +910,7 @@ export const LandingView: React.FC<LandingViewProps> = ({
                             onStartBooking({ initialSportelloId: s.id });
                           }}
                           className="text-[11px] font-bold text-sky-700 hover:text-sky-800 hover:underline shrink-0 px-2.5 py-1 rounded-lg hover:bg-sky-100/70 transition-colors cursor-pointer"
-                          title={`Prenota appuntamento a ${nomeBreve(s.nome)}`}
+                          title={`Prenota appuntamento a ${comuneName}`}
                         >
                           <span>Prenota →</span>
                         </button>

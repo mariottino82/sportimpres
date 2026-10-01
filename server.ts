@@ -134,7 +134,14 @@ app.get('/api/sportelli', (req, res) => {
         ? 'SELECT * FROM sportelli ORDER BY comune ASC'
         : 'SELECT * FROM sportelli WHERE attivo = 1 ORDER BY comune ASC'
     );
-    res.json(rows);
+    const enriched = rows.map((r: any) => {
+      let area = 'CB';
+      const c = (r.comune || r.nome || '').toLowerCase();
+      if (c.includes('termoli') || c.includes('montenero')) area = 'CO';
+      else if (r.provincia === 'IS' || c.includes('isernia') || c.includes('venafro') || c.includes('agnone') || c.includes('fornelli') || c.includes('frosolone')) area = 'IS';
+      return { ...r, area: r.area || area };
+    });
+    res.json(enriched);
   } catch (err: any) {
     res.status(500).json({ error: err.message });
   }
@@ -142,9 +149,13 @@ app.get('/api/sportelli', (req, res) => {
 
 app.get('/api/sportelli/:id', (req, res) => {
   try {
-    const row = queryOne('SELECT * FROM sportelli WHERE id = ?', [req.params.id]);
+    const row: any = queryOne('SELECT * FROM sportelli WHERE id = ?', [req.params.id]);
     if (!row) return res.status(404).json({ error: 'Sportello non trovato' });
-    res.json(row);
+    let area = 'CB';
+    const c = (row.comune || row.nome || '').toLowerCase();
+    if (c.includes('termoli') || c.includes('montenero')) area = 'CO';
+    else if (row.provincia === 'IS' || c.includes('isernia') || c.includes('venafro') || c.includes('agnone') || c.includes('fornelli') || c.includes('frosolone')) area = 'IS';
+    res.json({ ...row, area: row.area || area });
   } catch (err: any) {
     res.status(500).json({ error: err.message });
   }

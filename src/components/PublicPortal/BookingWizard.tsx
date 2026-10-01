@@ -4,6 +4,7 @@ import { MoliseMap } from '../MoliseMap';
 import { PdfPromemoriaModal } from '../PdfPromemoriaModal';
 import { MOLISE_COMUNI } from '../../data/moliseComuni';
 import { Sportello, UserType, Modality, Appointment } from '../../types';
+import { getSportelloComune } from '../../data/sportelliList';
 import { getUpcomingDatesForSportello } from '../../utils/sportelloSchedule';
 import {
   Building2,
@@ -186,12 +187,14 @@ export const BookingWizard: React.FC<BookingWizardProps> = ({
     sendEmailConfirmation(true);
   };
 
-  // Fetch sportelli on mount
+  // Fetch sportelli on mount (solo sportelli attivi)
   useEffect(() => {
     fetch('/api/sportelli')
       .then((res) => res.json())
       .then((data: Sportello[]) => {
-        const list = Array.isArray(data) ? data : [];
+        const list = Array.isArray(data)
+          ? data.filter((s) => s.attivo === undefined || s.attivo === 1 || (s.attivo as any) === true)
+          : [];
         setSportelli(list);
         if (initialSportelloId) {
           const found = list.find((s) => s.id === initialSportelloId);
@@ -1358,7 +1361,7 @@ export const BookingWizard: React.FC<BookingWizardProps> = ({
                       </div>
 
                       <h3 className="text-sm font-bold text-slate-900 leading-snug">
-                        {s.comune}
+                        {getSportelloComune(s)}
                       </h3>
                       <p className="text-[11px] text-slate-500 line-clamp-1 mt-0.5">
                         {s.indirizzo}
@@ -1432,7 +1435,7 @@ export const BookingWizard: React.FC<BookingWizardProps> = ({
               >
                 {sportelli.map((s) => (
                   <option key={s.id} value={s.id}>
-                    {s.comune} - {s.nome} ({s.giorni}, {s.orario})
+                    {getSportelloComune(s)} ({s.giorni}, {s.orario})
                   </option>
                 ))}
               </select>
@@ -1477,7 +1480,7 @@ export const BookingWizard: React.FC<BookingWizardProps> = ({
           <div className="max-w-3xl mx-auto bg-white rounded-2xl border border-slate-200 shadow-sm p-6 sm:p-8 space-y-6">
             <div className="space-y-1">
               <span className="text-xs font-bold text-sky-700 uppercase tracking-wider">
-                Disponibilità {selectedSportello.comune}
+                Disponibilità {getSportelloComune(selectedSportello)}
               </span>
               <h2 className="text-xl sm:text-2xl font-extrabold text-slate-950 font-display">
                 Data, Orario e Modalità
@@ -1538,7 +1541,7 @@ export const BookingWizard: React.FC<BookingWizardProps> = ({
               <div className="mt-3 pt-2.5 border-t border-slate-200/80 flex flex-wrap items-center justify-between gap-2 text-[11px] text-slate-600">
                 <div className="flex items-center gap-1.5">
                   <span className="font-semibold text-slate-800">Sede:</span>
-                  <span>{selectedSportello.nome} • {selectedSportello.indirizzo}</span>
+                  <span>{getSportelloComune(selectedSportello)} • {selectedSportello.indirizzo}</span>
                 </div>
                 {selectedSportello.responsabile_nome && (
                   <div className="flex items-center gap-1 text-slate-700 font-medium">
@@ -1726,7 +1729,7 @@ export const BookingWizard: React.FC<BookingWizardProps> = ({
                   </div>
                   <div>
                     <span className="text-slate-500 block">Sede e Modalità:</span>
-                    <strong>{selectedSportello.nome}</strong>
+                    <strong>{getSportelloComune(selectedSportello)}</strong>
                     <p className="text-slate-600">{selectedSportello.indirizzo}</p>
                     <span className="inline-block mt-1 font-bold px-2 py-0.5 rounded bg-white border text-[10px]">
                       {modalita === 'PRESENZA' ? 'In Presenza' : 'Videocall Online'}

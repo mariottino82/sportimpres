@@ -39,7 +39,40 @@ export const SPORTELLI_LIST: SportelloInfo[] = [
   { id: 12, nome: "Venafro", comune: "Venafro", giorni: "Martedì", orario: "15:00 - 17:00", indirizzo: "C/o Municipio, 86079 Venafro (IS)", lat: 41.484, lng: 14.045, area: "IS", cadenza: "Settimanale" }
 ];
 
-export const nomeBreve = (nome: string) => nome.replace(/ \(.*\)/, '');
+export const getSportelloComune = (s: { comune?: string; nome?: string } | null | undefined): string => {
+  if (!s) return '';
+  if (s.comune && s.comune.trim()) {
+    const cleanComune = s.comune.replace(/\s*\(.*?\)/g, '').trim();
+    if (cleanComune) return cleanComune;
+  }
+  const nome = (s.nome || '').replace(/\s*\(.*?\)/g, '').trim();
+  if (nome.toLowerCase().includes('campobasso') || nome.toLowerCase().includes('sviluppo italia molise')) {
+    return 'Campobasso';
+  }
+  if (nome.toLowerCase().includes('campochiaro') || nome.toLowerCase().includes('incubatore')) {
+    return 'Campochiaro';
+  }
+  if (nome.includes(' - ')) {
+    const afterDash = nome.split(' - ').pop()?.trim();
+    if (afterDash) return afterDash;
+  }
+  const clean = nome.replace(/^(sportello territoriale( di)?|sportello( di)?|sede centrale( di)?|incubatore regionale delle imprese( a)?)\s*/i, '').trim();
+  return clean || nome;
+};
+
+export const getSportelloArea = (s: { area?: string; provincia?: string; comune?: string; nome?: string } | null | undefined): 'IS' | 'CB' | 'CO' => {
+  if (!s) return 'CB';
+  if (s.area === 'IS' || s.area === 'CB' || s.area === 'CO') return s.area;
+  const comune = (s.comune || s.nome || '').toLowerCase();
+  if (comune.includes('termoli') || comune.includes('montenero')) return 'CO';
+  if (s.provincia === 'IS' || comune.includes('isernia') || comune.includes('venafro') || comune.includes('agnone') || comune.includes('fornelli') || comune.includes('frosolone')) return 'IS';
+  return 'CB';
+};
+
+export const nomeBreve = (nome: string) => {
+  if (!nome) return '';
+  return getSportelloComune({ nome });
+};
 
 export const ORDINE_SPORTELLI = [
   ...SPORTELLI_LIST.filter(s => s.area === 'IS'),

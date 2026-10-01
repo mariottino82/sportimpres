@@ -1,7 +1,7 @@
 import React, { useEffect, useRef } from 'react';
 import L from 'leaflet';
 import { MOLISE_COORDS, MOLISE_RILIEVO_BOUNDS } from '../data/moliseGeo';
-import { SPORTELLI_LIST, AREE, nomeBreve, SportelloInfo } from '../data/sportelliList';
+import { SPORTELLI_LIST, AREE, nomeBreve, getSportelloComune, getSportelloArea, SportelloInfo } from '../data/sportelliList';
 
 interface MoliseMapProps {
   selectedSportello?: SportelloInfo | null;
@@ -17,8 +17,10 @@ const LBL_POS: Record<string, string> = {
   Fornelli: 'l',
 };
 
-function getMarkerLabel(nome: string) {
-  const n = nomeBreve(nome);
+function getMarkerLabel(nameOrSportello: any) {
+  const n = typeof nameOrSportello === 'string'
+    ? getSportelloComune({ nome: nameOrSportello })
+    : getSportelloComune(nameOrSportello);
   const p = LBL_POS[n] || 'b';
   const st = 'font-size="12.5" font-weight="700" fill="#1e293b" stroke="#ffffff" stroke-width="4" stroke-linejoin="round" style="paint-order:stroke"';
   if (p === 'r') return `<text x="17" y="4.5" text-anchor="start" ${st}>${n}</text>`;
@@ -101,15 +103,19 @@ export const MoliseMap: React.FC<MoliseMapProps> = ({
     markersGroupRef.current.clearLayers();
     const box = mapContainerRef.current.parentElement;
 
-    const listToRender = (sportelli && sportelli.length > 0) ? sportelli : SPORTELLI_LIST;
+    const rawList = (sportelli && sportelli.length > 0) ? sportelli : SPORTELLI_LIST;
+    // Prendi solo gli sportelli attivi
+    const listToRender = rawList.filter((s: any) => s.attivo === undefined || s.attivo === 1 || s.attivo === true);
 
     listToRender.forEach((s) => {
-      const A = AREE[s.area as keyof typeof AREE] || { col: '#0284c7', nome: 'Molise', soft: '#e0f2fe' };
+      const areaKey = getSportelloArea(s);
+      const A = AREE[areaKey] || { col: '#0284c7', nome: 'Molise', soft: '#e0f2fe' };
       const isSelected = Boolean(
         (selectedSportello && selectedSportello.id === s.id) ||
         (selectedSportelloId !== undefined && selectedSportelloId !== null && String(selectedSportelloId) === String(s.id))
       );
-      const isDimmed = Boolean(filtroArea && s.area !== filtroArea);
+      const isDimmed = Boolean(filtroArea && areaKey !== filtroArea);
+      const comuneLabel = getSportelloComune(s);
 
       const html = `
         <svg width="1" height="1">
@@ -125,11 +131,11 @@ export const MoliseMap: React.FC<MoliseMapProps> = ({
               <circle cy="${isSelected ? -5.5 : -4.5}" r="${isSelected ? 2 : 1.6}"/>
               <rect x="${isSelected ? -1.7 : -1.4}" y="${isSelected ? -2.2 : -1.8}" width="${isSelected ? 3.4 : 2.8}" height="${isSelected ? 8 : 6.5}" rx="1.4"/>
             </g>
-            ${isSelected ? '' : getMarkerLabel(s.nome)}
+            ${isSelected ? '' : getMarkerLabel(comuneLabel)}
             ${isSelected ? `
               <g transform="translate(0,-30)">
-                <rect x="${-(nomeBreve(s.nome).length * 3.9 + 14)}" y="-22" width="${nomeBreve(s.nome).length * 7.8 + 28}" height="26" rx="13" fill="#0f172a"/>
-                <text text-anchor="middle" y="-4.5" font-size="12.5" font-weight="700" fill="#ffffff">${nomeBreve(s.nome)}</text>
+                <rect x="${-(comuneLabel.length * 3.9 + 14)}" y="-22" width="${comuneLabel.length * 7.8 + 28}" height="26" rx="13" fill="#0f172a"/>
+                <text text-anchor="middle" y="-4.5" font-size="12.5" font-weight="700" fill="#ffffff">${comuneLabel}</text>
               </g>
             ` : ''}
           </g>
@@ -159,7 +165,7 @@ export const MoliseMap: React.FC<MoliseMapProps> = ({
           if (isSelected || !tipRef.current || !box) return;
           const rect = element.getBoundingClientRect();
           const boxRect = box.getBoundingClientRect();
-          tipRef.current.textContent = nomeBreve(s.nome);
+          tipRef.current.textContent = comuneLabel;
           tipRef.current.style.left = `${rect.left + rect.width / 2 - boxRect.left}px`;
           tipRef.current.style.top = `${rect.top - boxRect.top - 6}px`;
           tipRef.current.classList.remove('hidden');
