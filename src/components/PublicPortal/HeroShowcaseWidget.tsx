@@ -210,6 +210,8 @@ export const HeroShowcaseWidget: React.FC<HeroShowcaseWidgetProps> = ({
               src={currentSlide.imageUrl}
               alt={currentSlide.title}
               className="w-full h-full object-cover opacity-85 transition-transform duration-700 hover:scale-105"
+              loading="eager"
+              decoding="async"
             />
             {/* Dark gradient scrim */}
             <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-950/45 to-transparent flex flex-col justify-between p-4 sm:p-5">
@@ -312,9 +314,14 @@ export const HeroShowcaseWidget: React.FC<HeroShowcaseWidgetProps> = ({
           {featuredVideo ? (
             <div className="relative group aspect-[16/9] bg-slate-900 overflow-hidden">
               <img
-                src={`https://images.unsplash.com/photo-1542744173-8e7e53415bb0?auto=format&fit=crop&w=800&q=80`}
+                src={featuredVideo.youtube_id
+                  ? `https://img.youtube.com/vi/${featuredVideo.youtube_id}/mqdefault.jpg`
+                  : `https://images.unsplash.com/photo-1542744173-8e7e53415bb0?auto=format&fit=crop&w=800&q=80`
+                }
                 alt={featuredVideo.titolo}
                 className="w-full h-full object-cover opacity-80 group-hover:scale-105 transition-transform duration-500"
+                loading="eager"
+                decoding="async"
               />
               <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-950/40 to-transparent flex flex-col justify-between p-4">
                 <div className="flex justify-between items-start">

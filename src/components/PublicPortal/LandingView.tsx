@@ -1,8 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, Suspense, lazy } from 'react';
 import { Logo } from '../Logo';
 import { MoliseMap } from '../MoliseMap';
-import { PolicyModal } from './PolicyModal';
 import { SPORTELLI_LIST, AREE, ORDINE_SPORTELLI, nomeBreve, getSportelloComune, getSportelloArea, SportelloInfo } from '../../data/sportelliList';
+
+const PolicyModal = lazy(() => import('./PolicyModal').then(m => ({ default: m.PolicyModal })));
 import { EVENTI_DEFAULT, MESI_IT, MESI_ESTESI_IT, EventoItem } from '../../data/portalEvents';
 import { WebTvVideo } from '../../types';
 import {
@@ -37,6 +38,108 @@ const TAG_STYLES: Record<string, string> = {
   BANDO: 'bg-purple-50 text-purple-700 border-purple-200',
 };
 
+// Componente isolato per il ticker di notizie ed eventi: evita che il timer dei 3.8s causi il re-render dell'intera pagina
+const EventTickerBanner: React.FC<{ events: EventoItem[] }> = React.memo(({ events }) => {
+  const [tickerOffset, setTickerOffset] = useState<number>(0);
+  const [enableTransition, setEnableTransition] = useState<boolean>(true);
+  const [isEventTickerPaused, setIsEventTickerPaused] = useState<boolean>(false);
+
+  useEffect(() => {
+    if (events.length <= 1 || isEventTickerPaused) return;
+    const timer = setInterval(() => {
+      setEnableTransition(true);
+      setTickerOffset((prev) => prev + 1);
+    }, 3800);
+    return () => clearInterval(timer);
+  }, [events.length, isEventTickerPaused]);
+
+  useEffect(() => {
+    if (events.length <= 1) return;
+    if (tickerOffset === events.length) {
+      const snapTimer = setTimeout(() => {
+        setEnableTransition(false);
+        setTickerOffset(0);
+      }, 550);
+      return () => clearTimeout(snapTimer);
+    }
+  }, [tickerOffset, events.length]);
+
+  if (events.length === 0) return null;
+
+  const currentDisplayIndex = tickerOffset % events.length;
+  const tickerItems = events.length > 1 ? [...events, events[0]] : events;
+
+  return (
+    <a
+      id="evbar"
+      href="#news"
+      onMouseEnter={() => setIsEventTickerPaused(true)}
+      onMouseLeave={() => setIsEventTickerPaused(false)}
+      className="group block bg-gradient-to-r from-sky-50 via-blue-50/70 to-indigo-50/50 border-b border-sky-200/80 px-3 sm:px-6 py-2 hover:bg-sky-100/70 transition-all select-none"
+      title="Scorri gli appuntamenti o clicca per visualizzare la sezione News ed Eventi"
+    >
+      <div className="max-w-7xl mx-auto flex items-center justify-between gap-3 text-sm">
+        {/* Left badge & ticker title */}
+        <div className="flex items-center gap-2 shrink-0">
+          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-sky-600 text-white text-[10px] font-bold uppercase tracking-wider shadow-xs">
+            <Calendar className="w-3.5 h-3.5" />
+            <span>News ed Eventi</span>
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-300 animate-pulse"></span>
+          </span>
+        </div>
+
+        {/* Dynamic Event Content Vertical Ticker */}
+        <div className="flex-1 min-w-0 h-8 overflow-hidden relative px-1">
+          <div
+            className={`flex flex-col ${enableTransition ? 'transition-transform duration-500 cubic-bezier(0.2, 0.8, 0.2, 1)' : ''}`}
+            style={{ transform: `translateY(-${tickerOffset * 32}px)` }}
+          >
+            {tickerItems.map((evento, idx) => {
+              const evDate = new Date(evento.data);
+              const isCurrent = idx === currentDisplayIndex;
+              return (
+                <div
+                  key={evento.id ? `ev-${evento.id}-${idx}` : `ev-${idx}`}
+                  className="h-8 flex items-center gap-2 truncate shrink-0"
+                >
+                  <span className="shrink-0 px-2 py-0.5 rounded bg-white text-sky-800 border border-sky-200 text-xs font-bold font-mono shadow-2xs">
+                    {evDate.getDate()} {MESI_IT[evDate.getMonth()]}
+                  </span>
+                  <span
+                    className={`shrink-0 text-[10px] font-extrabold uppercase px-1.5 py-0.5 rounded border ${
+                      TAG_STYLES[evento.tipo] || TAG_STYLES.EVENTO
+                    }`}
+                  >
+                    {evento.tipo}
+                  </span>
+                  <span
+                    id={isCurrent ? 'evbar-txt' : undefined}
+                    className="font-semibold text-slate-800 text-xs sm:text-sm truncate group-hover:text-sky-900"
+                  >
+                    {evento.titolo}
+                    {evento.luogo ? ` · ${evento.luogo}` : ''}
+                    {evento.ora ? ` (ore ${evento.ora})` : ''}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Controls: All Events Link */}
+        <div className="flex items-center gap-2 shrink-0">
+          <span className="text-sky-700 group-hover:text-sky-900 font-bold text-xs whitespace-nowrap ml-1 flex items-center gap-0.5 group-hover:translate-x-0.5 transition-transform">
+            <span className="hidden sm:inline">Tutti gli eventi</span>
+            <span className="sm:hidden">Eventi</span>
+            <span className="text-[11px] opacity-75">({events.length})</span>
+            <ArrowRight className="w-3.5 h-3.5" />
+          </span>
+        </div>
+      </div>
+    </a>
+  );
+});
+
 export const LandingView: React.FC<LandingViewProps> = ({
   onStartBooking,
   onOpenWebTvModal,
@@ -52,97 +155,73 @@ export const LandingView: React.FC<LandingViewProps> = ({
   const [webtvPreviewOpen, setWebtvPreviewOpen] = useState<boolean>(false);
   const [videos, setVideos] = useState<WebTvVideo[]>([]);
   const [eventiList, setEventiList] = useState<EventoItem[]>(EVENTI_DEFAULT);
-  const [loadingEventi, setLoadingEventi] = useState<boolean>(true);
+  const [loadingEventi, setLoadingEventi] = useState<boolean>(false);
 
   useEffect(() => {
-    fetch('/api/sportelli')
-      .then((res) => res.json())
-      .then((data) => {
-        if (Array.isArray(data) && data.length > 0) {
-          const active = data.filter((s: any) => s.attivo === undefined || s.attivo === 1 || s.attivo === true);
-          if (active.length > 0) {
-            setSportelliData(active);
-            setSelectedSportello((prev) => active.find((s: any) => s.id === prev.id) || active[0] || prev);
-          }
-        }
-      })
-      .catch(() => {});
+    let isMounted = true;
 
-    fetch('/api/webtv/video')
-      .then((res) => res.json())
-      .then((data) => setVideos(Array.isArray(data) ? data : []))
-      .catch(() => setVideos([]));
+    Promise.allSettled([
+      fetch('/api/sportelli').then((res) => (res.ok ? res.json() : null)),
+      fetch('/api/webtv/video').then((res) => (res.ok ? res.json() : null)),
+      fetch('/api/eventi').then((res) => (res.ok ? res.json() : null)),
+    ]).then(([sportelliRes, videosRes, eventiRes]) => {
+      if (!isMounted) return;
 
-    fetch('/api/eventi')
-      .then((res) => {
-        if (!res.ok) throw new Error('API non disponibile');
-        return res.json();
-      })
-      .then((data) => {
-        if (Array.isArray(data) && data.length > 0) {
-          const mapped: EventoItem[] = data.map((d: any) => ({
-            id: d.id,
-            data: d.data,
-            tipo: d.tipo || 'EVENTO',
-            titolo: d.titolo,
-            testo: d.testo,
-            luogo: d.luogo || '',
-            ora: d.ora || '',
-            nota: d.nota || '',
-            bottone: d.bottone || 'Scopri',
-            link: d.link || '',
-            hasManifesto: Boolean(d.manifesto_url || d.titolo?.toLowerCase().includes('manifesto')),
-            manifesto_url: d.manifesto_url || '',
-            locandina_tipo: d.locandina_tipo || (d.manifesto_url?.toLowerCase().endsWith('.pdf') ? 'pdf' : (d.manifesto_url ? 'image' : '')),
-            locandina_nome: d.locandina_nome || '',
-            attivo: d.attivo !== undefined ? d.attivo : 1,
-          }));
-          setEventiList(mapped);
+      if (sportelliRes.status === 'fulfilled' && Array.isArray(sportelliRes.value) && sportelliRes.value.length > 0) {
+        const active = sportelliRes.value.filter((s: any) => s.attivo === undefined || s.attivo === 1 || s.attivo === true);
+        if (active.length > 0) {
+          setSportelliData(active);
+          setSelectedSportello((prev) => active.find((s: any) => s.id === prev?.id) || active[0] || prev);
         }
-        setLoadingEventi(false);
-      })
-      .catch((err) => {
-        console.warn('Caricamento eventi fallback:', err);
-        setLoadingEventi(false);
-      });
+      }
+
+      if (videosRes.status === 'fulfilled' && Array.isArray(videosRes.value)) {
+        setVideos(videosRes.value);
+      }
+
+      if (eventiRes.status === 'fulfilled' && Array.isArray(eventiRes.value) && eventiRes.value.length > 0) {
+        const mapped: EventoItem[] = eventiRes.value.map((d: any) => ({
+          id: d.id,
+          data: d.data,
+          tipo: d.tipo || 'EVENTO',
+          titolo: d.titolo,
+          testo: d.testo,
+          luogo: d.luogo || '',
+          ora: d.ora || '',
+          nota: d.nota || '',
+          bottone: d.bottone || 'Scopri',
+          link: d.link || '',
+          hasManifesto: Boolean(d.manifesto_url || d.titolo?.toLowerCase().includes('manifesto')),
+          manifesto_url: d.manifesto_url || '',
+          locandina_tipo: d.locandina_tipo || (d.manifesto_url?.toLowerCase().endsWith('.pdf') ? 'pdf' : (d.manifesto_url ? 'image' : '')),
+          locandina_nome: d.locandina_nome || '',
+          attivo: d.attivo !== undefined ? d.attivo : 1,
+        }));
+        setEventiList(mapped);
+      }
+      setLoadingEventi(false);
+    });
+
+    return () => {
+      isMounted = false;
+    };
   }, []);
 
-  const prossimiEventi = eventiList
-    .filter((e) => e.attivo === undefined || e.attivo === 1)
-    .sort((a, b) => a.data.localeCompare(b.data));
+  const prossimiEventi = useMemo(() => {
+    return eventiList
+      .filter((e) => e.attivo === undefined || e.attivo === 1)
+      .sort((a, b) => a.data.localeCompare(b.data));
+  }, [eventiList]);
 
-  const filteredEventi = prossimiEventi.filter(
-    (e) => !activeEventTab || e.tipo === activeEventTab
-  );
+  const filteredEventi = useMemo(() => {
+    return prossimiEventi.filter(
+      (e) => !activeEventTab || e.tipo === activeEventTab
+    );
+  }, [prossimiEventi, activeEventTab]);
 
-  const [tickerOffset, setTickerOffset] = useState<number>(0);
-  const [enableTransition, setEnableTransition] = useState<boolean>(true);
-  const [isEventTickerPaused, setIsEventTickerPaused] = useState<boolean>(false);
-
-  useEffect(() => {
-    if (prossimiEventi.length <= 1 || isEventTickerPaused) return;
-    const timer = setInterval(() => {
-      setEnableTransition(true);
-      setTickerOffset((prev) => prev + 1);
-    }, 3800);
-    return () => clearInterval(timer);
-  }, [prossimiEventi.length, isEventTickerPaused]);
-
-  useEffect(() => {
-    if (prossimiEventi.length <= 1) return;
-    if (tickerOffset === prossimiEventi.length) {
-      const snapTimer = setTimeout(() => {
-        setEnableTransition(false);
-        setTickerOffset(0);
-      }, 550);
-      return () => clearTimeout(snapTimer);
-    }
-  }, [tickerOffset, prossimiEventi.length]);
-
-  const currentDisplayIndex = prossimiEventi.length > 0 ? (tickerOffset % prossimiEventi.length) : 0;
-  const tickerItems = prossimiEventi.length > 1
-    ? [...prossimiEventi, prossimiEventi[0]]
-    : prossimiEventi;
+  const handleSelectSportello = useCallback((s: any) => {
+    setSelectedSportello(s);
+  }, []);
 
   const handleWebTvClick = () => {
     if (videos.length > 0) {
@@ -210,82 +289,8 @@ export const LandingView: React.FC<LandingViewProps> = ({
         </div>
       </div>
 
-      {/* 2. Prossimo Evento / News Scroll Bar (Scorrimento verticale dal basso verso l'alto) */}
-      {prossimiEventi.length > 0 && (
-        <a
-          id="evbar"
-          href="#news"
-          onMouseEnter={() => setIsEventTickerPaused(true)}
-          onMouseLeave={() => setIsEventTickerPaused(false)}
-          className="group block bg-gradient-to-r from-sky-50 via-blue-50/70 to-indigo-50/50 border-b border-sky-200/80 px-3 sm:px-6 py-2 hover:bg-sky-100/70 transition-all select-none"
-          title="Scorri gli appuntamenti o clicca per visualizzare la sezione News ed Eventi"
-        >
-          <div className="max-w-7xl mx-auto flex items-center justify-between gap-3 text-sm">
-            {/* Left badge & ticker title */}
-            <div className="flex items-center gap-2 shrink-0">
-              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-sky-600 text-white text-[10px] font-bold uppercase tracking-wider shadow-xs">
-                <Calendar className="w-3.5 h-3.5" />
-                <span>News ed Eventi</span>
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-300 animate-pulse"></span>
-              </span>
-            </div>
-
-            {/* Dynamic Event Content Vertical Ticker (Scorrimento dal basso verso l'alto) */}
-            <div className="flex-1 min-w-0 h-8 overflow-hidden relative px-1">
-              <div
-                className={`flex flex-col ${enableTransition ? 'transition-transform duration-500 cubic-bezier(0.2, 0.8, 0.2, 1)' : ''}`}
-                style={{ transform: `translateY(-${tickerOffset * 32}px)` }}
-              >
-                {tickerItems.map((evento, idx) => {
-                  const evDate = new Date(evento.data);
-                  const isCurrent = idx === currentDisplayIndex;
-                  return (
-                    <div
-                      key={evento.id ? `ev-${evento.id}-${idx}` : `ev-${idx}`}
-                      className="h-8 flex items-center gap-2 truncate shrink-0"
-                    >
-                      {/* Date badge */}
-                      <span className="shrink-0 px-2 py-0.5 rounded bg-white text-sky-800 border border-sky-200 text-xs font-bold font-mono shadow-2xs">
-                        {evDate.getDate()} {MESI_IT[evDate.getMonth()]}
-                      </span>
-
-                      {/* Category tag */}
-                      <span
-                        className={`shrink-0 text-[10px] font-extrabold uppercase px-1.5 py-0.5 rounded border ${
-                          TAG_STYLES[evento.tipo] || TAG_STYLES.EVENTO
-                        }`}
-                      >
-                        {evento.tipo}
-                      </span>
-
-                      {/* Title & location */}
-                      <span
-                        id={isCurrent ? 'evbar-txt' : undefined}
-                        className="font-semibold text-slate-800 text-xs sm:text-sm truncate group-hover:text-sky-900"
-                      >
-                        {evento.titolo}
-                        {evento.luogo ? ` · ${evento.luogo}` : ''}
-                        {evento.ora ? ` (ore ${evento.ora})` : ''}
-                      </span>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-
-            {/* Controls: All Events Link */}
-            <div className="flex items-center gap-2 shrink-0">
-              {/* View all events CTA */}
-              <span className="text-sky-700 group-hover:text-sky-900 font-bold text-xs whitespace-nowrap ml-1 flex items-center gap-0.5 group-hover:translate-x-0.5 transition-transform">
-                <span className="hidden sm:inline">Tutti gli eventi</span>
-                <span className="sm:hidden">Eventi</span>
-                <span className="text-[11px] opacity-75">({prossimiEventi.length})</span>
-                <ArrowRight className="w-3.5 h-3.5" />
-              </span>
-            </div>
-          </div>
-        </a>
-      )}
+      {/* 2. Prossimo Evento / News Scroll Bar (Componente isolato, non re-renderizza la pagina) */}
+      <EventTickerBanner events={prossimiEventi} />
 
       {/* 3. HERO Section */}
       <section
@@ -604,7 +609,7 @@ export const LandingView: React.FC<LandingViewProps> = ({
 
                     {/* Miniatura o Blob Documento/Immagine quando disponibile */}
                     {evento.manifesto_url && (
-                      evento.locandina_tipo === 'pdf' || evento.manifesto_url.toLowerCase().endsWith('.pdf') ? (
+                      (evento.locandina_tipo === 'pdf' || evento.manifesto_url.toLowerCase().endsWith('.pdf')) ? (
                         /* Blob Documento PDF */
                         <div className="mt-3.5 p-3 rounded-xl border border-red-200 bg-red-50/50 flex items-center gap-3 shadow-2xs group-hover:border-red-300 transition-all">
                           <div className="w-10 h-10 rounded-lg bg-red-600 text-white flex flex-col items-center justify-center shrink-0 shadow-xs">
@@ -623,7 +628,7 @@ export const LandingView: React.FC<LandingViewProps> = ({
                             <ExternalLink className="w-3.5 h-3.5" />
                           </div>
                         </div>
-                      ) : (
+                      ) : (evento.manifesto_url.startsWith('/') || evento.manifesto_url.startsWith('http') || evento.manifesto_url.startsWith('data:')) ? (
                         /* Miniatura Locandina Immagine JPEG / PNG */
                         <div className="mt-3.5 rounded-xl border border-slate-200 overflow-hidden bg-slate-100 shadow-2xs group-hover:border-sky-300 transition-all">
                           <div className="relative h-28 sm:h-32 w-full bg-slate-200/60 overflow-hidden">
@@ -631,8 +636,28 @@ export const LandingView: React.FC<LandingViewProps> = ({
                               src={evento.manifesto_url}
                               alt={evento.titolo}
                               className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                              loading="lazy"
+                              loading="eager"
+                              decoding="async"
                             />
+                          </div>
+                        </div>
+                      ) : (
+                        /* Card Locandina / Avviso */
+                        <div className="mt-3.5 p-3 rounded-xl border border-sky-200 bg-sky-50/60 flex items-center gap-3 shadow-2xs group-hover:border-sky-300 transition-all">
+                          <div className="w-10 h-10 rounded-lg bg-sky-600 text-white flex flex-col items-center justify-center shrink-0 shadow-xs">
+                            <ImageIcon className="w-5 h-5 text-white" />
+                            <span className="text-[7px] font-black uppercase tracking-wider">AVVISO</span>
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <div className="text-xs font-bold text-slate-800 truncate">
+                              Manifesto Ufficiale
+                            </div>
+                            <div className="text-[11px] text-slate-500 font-medium">
+                              Clicca per consultare i dettagli
+                            </div>
+                          </div>
+                          <div className="shrink-0 text-slate-400 group-hover:text-sky-600 transition-colors">
+                            <ExternalLink className="w-3.5 h-3.5" />
                           </div>
                         </div>
                       )
@@ -757,7 +782,7 @@ export const LandingView: React.FC<LandingViewProps> = ({
                 sportelli={sportelliData}
                 selectedSportello={selectedSportello}
                 filtroArea={filtroArea}
-                onSelectSportello={(s) => setSelectedSportello(s)}
+                onSelectSportello={handleSelectSportello}
               />
 
               <div className="px-5 pb-4 text-[11px] text-slate-500">
@@ -773,13 +798,13 @@ export const LandingView: React.FC<LandingViewProps> = ({
                 <div className="flex items-center gap-3">
                   <span
                     className="w-12 h-12 rounded-2xl flex items-center justify-center text-white shrink-0"
-                    style={{ backgroundColor: selectedAreaConfig.col }}
+                    style={{ backgroundColor: selectedAreaConfig?.col || '#0284c7' }}
                   >
                     <Info className="w-6 h-6" />
                   </span>
                   <div>
-                    <div className={`text-[10px] font-bold uppercase tracking-wider ${selectedAreaConfig.txt}`}>
-                      {selectedAreaConfig.nome} · {selectedSportello.cadenza}
+                    <div className={`text-[10px] font-bold uppercase tracking-wider ${selectedAreaConfig?.txt || 'text-sky-700'}`}>
+                      {selectedAreaConfig?.nome || 'Molise'} · {selectedSportello?.cadenza || 'Settimanale'}
                     </div>
                     <h3 className="font-display font-extrabold text-2xl text-slate-950 leading-tight">
                       {getSportelloComune(selectedSportello)}
@@ -793,7 +818,7 @@ export const LandingView: React.FC<LandingViewProps> = ({
                     <div>
                       <div className="text-[11px] text-slate-500 font-semibold">Giorni e orari</div>
                       <div className="font-bold text-slate-900">
-                        {selectedSportello.giorni} · {selectedSportello.orario}
+                        {selectedSportello?.giorni || 'Lunedì - Venerdì'} · {selectedSportello?.orario || '09:30 - 12:00'}
                       </div>
                     </div>
                   </div>
@@ -802,7 +827,7 @@ export const LandingView: React.FC<LandingViewProps> = ({
                     <MapPin className="w-4 h-4 mt-0.5 text-sky-600 shrink-0" />
                     <div>
                       <div className="text-[11px] text-slate-500 font-semibold">Indirizzo</div>
-                      <div className="font-bold text-slate-900">{selectedSportello.indirizzo}</div>
+                      <div className="font-bold text-slate-900">{selectedSportello?.indirizzo || 'Molise'}</div>
                     </div>
                   </div>
 
@@ -835,11 +860,11 @@ export const LandingView: React.FC<LandingViewProps> = ({
 
               <button
                 type="button"
-                onClick={() => onStartBooking({ initialSportelloId: selectedSportello.id })}
+                onClick={() => onStartBooking({ initialSportelloId: selectedSportello?.id })}
                 className="mt-5 w-full inline-flex items-center justify-center gap-2 px-5 py-4 rounded-xl bg-gradient-to-r from-sky-600 to-blue-700 hover:from-sky-700 hover:to-blue-800 text-white text-base font-bold shadow-lg shadow-sky-600/25 transition-all cursor-pointer"
               >
                 <Calendar className="w-5 h-5" />
-                <span>Prenota a {nomeBreve(selectedSportello.nome)}</span>
+                <span>Prenota a {getSportelloComune(selectedSportello)}</span>
               </button>
             </div>
           </div>
@@ -859,16 +884,16 @@ export const LandingView: React.FC<LandingViewProps> = ({
                 }`}
               >
                 <div className="px-4 py-2.5 flex items-center justify-between" style={{ background: cfg.soft }}>
-                  <span className="text-xs font-bold uppercase tracking-wider" style={{ color: cfg.col }}>
-                    {cfg.nome}
+                  <span className="text-xs font-bold uppercase tracking-wider" style={{ color: cfg?.col || '#0284c7' }}>
+                    {cfg?.nome || 'Molise'}
                   </span>
-                  <span className="text-[11px] font-bold" style={{ color: cfg.col }}>
+                  <span className="text-[11px] font-bold" style={{ color: cfg?.col || '#0284c7' }}>
                     {items.length} sportelli
                   </span>
                 </div>
                 <div className="divide-y divide-slate-100">
                   {items.map((s) => {
-                    const isSelected = s.id === selectedSportello.id;
+                    const isSelected = Boolean(selectedSportello && s.id === selectedSportello.id);
                     const comuneName = getSportelloComune(s);
                     return (
                       <div
@@ -888,8 +913,8 @@ export const LandingView: React.FC<LandingViewProps> = ({
                           <span
                             className="w-7 h-7 rounded-full flex items-center justify-center shrink-0"
                             style={{
-                              background: isSelected ? cfg.col : cfg.soft,
-                              color: isSelected ? '#ffffff' : cfg.col,
+                              background: isSelected ? (cfg?.col || '#0284c7') : (cfg?.soft || '#f1f5f9'),
+                              color: isSelected ? '#ffffff' : (cfg?.col || '#0284c7'),
                             }}
                           >
                             <Info className="w-4 h-4" />
@@ -1287,10 +1312,12 @@ export const LandingView: React.FC<LandingViewProps> = ({
 
       {/* Policy Modal */}
       {policyModalType && (
-        <PolicyModal
-          type={policyModalType}
-          onClose={() => setPolicyModalType(null)}
-        />
+        <Suspense fallback={null}>
+          <PolicyModal
+            type={policyModalType}
+            onClose={() => setPolicyModalType(null)}
+          />
+        </Suspense>
       )}
     </div>
   );

@@ -112,7 +112,7 @@ export const Logo: React.FC<LogoProps> = ({
                 className={`h-3.5 sm:h-4.5 w-auto object-contain shrink-0 select-none ${
                   isDark ? 'brightness-0 invert opacity-90' : ''
                 }`}
-                loading="lazy"
+                loading="eager"
                 referrerPolicy="no-referrer"
               />
             </div>

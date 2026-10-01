@@ -11,6 +11,7 @@ try {
 }
 
 import express from 'express';
+import compression from 'compression';
 import crypto from 'crypto';
 import { createServer as createViteServer } from 'vite';
 import { getDb, queryAll, queryOne, run, purgeSampleTestData } from './server/db.js';
@@ -26,6 +27,12 @@ import {
 const app = express();
 const PORT = 3000;
 
+// GZIP & Brotli compression for all requests (CSS, JS, SVG, JSON)
+app.use(compression({
+  threshold: 1024,
+  level: 6
+}));
+
 app.use(express.json({ limit: '25mb' }));
 app.use(express.urlencoded({ extended: true, limit: '25mb' }));
 
@@ -34,7 +41,12 @@ const uploadsDir = path.resolve(process.cwd(), 'public', 'uploads');
 if (!fs.existsSync(uploadsDir)) {
   fs.mkdirSync(uploadsDir, { recursive: true });
 }
-app.use('/uploads', express.static(uploadsDir));
+app.use('/uploads', express.static(uploadsDir, {
+  maxAge: '7d',
+  setHeaders: (res) => {
+    res.setHeader('Cache-Control', 'public, max-age=604800, stale-while-revalidate=86400');
+  }
+}));
 
 // Endpoint dedicato per l'upload di locandina in formato JPEG, PNG o PDF
 app.post('/api/upload-locandina', (req, res) => {
@@ -141,6 +153,7 @@ app.get('/api/sportelli', (req, res) => {
       else if (r.provincia === 'IS' || c.includes('isernia') || c.includes('venafro') || c.includes('agnone') || c.includes('fornelli') || c.includes('frosolone')) area = 'IS';
       return { ...r, area: r.area || area };
     });
+    res.setHeader('Cache-Control', 'public, max-age=30, stale-while-revalidate=120');
     res.json(enriched);
   } catch (err: any) {
     res.status(500).json({ error: err.message });
@@ -324,6 +337,7 @@ app.get('/api/eventi', (req, res) => {
         ? 'SELECT * FROM eventi ORDER BY data ASC'
         : 'SELECT * FROM eventi WHERE attivo = 1 ORDER BY data ASC'
     );
+    res.setHeader('Cache-Control', 'public, max-age=30, stale-while-revalidate=120');
     res.json(rows);
   } catch (err: any) {
     res.status(500).json({ error: err.message });
@@ -2107,12 +2121,14 @@ const DEFAULT_HERO_CONFIG = {
 app.get('/api/hero-showcase', (req, res) => {
   try {
     const row = queryOne("SELECT valore FROM configurazioni WHERE chiave = 'hero_showcase'");
+    res.setHeader('Cache-Control', 'public, max-age=30, stale-while-revalidate=120');
     if (!row || !row.valore) {
       return res.json(DEFAULT_HERO_CONFIG);
     }
     const parsed = JSON.parse(row.valore);
     res.json({ ...DEFAULT_HERO_CONFIG, ...parsed });
   } catch (err: any) {
+    res.setHeader('Cache-Control', 'public, max-age=30, stale-while-revalidate=120');
     res.json(DEFAULT_HERO_CONFIG);
   }
 });
@@ -2147,6 +2163,7 @@ app.get(['/api/webtv', '/api/webtv/video'], (req, res) => {
       LEFT JOIN bandi b ON v.bando_id = b.id 
       ORDER BY v.data_pubblicazione DESC
     `);
+    res.setHeader('Cache-Control', 'public, max-age=30, stale-while-revalidate=120');
     res.json(rows);
   } catch (err: any) {
     res.status(500).json({ error: err.message });
@@ -2401,8 +2418,23 @@ async function startServer() {
     app.use(vite.middlewares);
   } else {
     const distPath = path.join(process.cwd(), 'dist');
-    app.use(express.static(distPath));
+    app.use(express.static(distPath, {
+      maxAge: '1d',
+      setHeaders: (res, filePath) => {
+        if (filePath.includes(path.sep + 'assets' + path.sep)) {
+          // Vite hashed bundles are immutable
+          res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+        } else if (/\.(svg|png|jpg|jpeg|webp|gif|ico|woff2?)$/i.test(filePath)) {
+          res.setHeader('Cache-Control', 'public, max-age=86400');
+        }
+      }
+    }));
+
     app.get('*', (req, res) => {
+      // If a missing file with an extension was requested, return 404 instead of index.html
+      if (/\.[a-zA-Z0-9]+$/.test(req.path)) {
+        return res.status(404).send('Not found');
+      }
       res.sendFile(path.join(distPath, 'index.html'));
     });
   }

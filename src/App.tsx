@@ -1,18 +1,20 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, Suspense, lazy } from 'react';
 import { InstitutionalBanner, InstitutionalLogosStrip, Logo } from './components/Logo';
 import { LandingView } from './components/PublicPortal/LandingView';
-import { BookingWizard } from './components/PublicPortal/BookingWizard';
-import { LookupModal } from './components/PublicPortal/LookupModal';
-import { WebTvModal } from './components/PublicPortal/WebTvModal';
-import { PolicyModal } from './components/PublicPortal/PolicyModal';
-import { AdminDashboard } from './components/Crm/AdminDashboard';
-import { CrmLoginView } from './components/Crm/CrmLoginView';
 import { WebTvVideo, CrmOperator } from './types';
 import {
   Calendar,
   Lock,
-  UserCheck
+  UserCheck,
+  Loader2
 } from 'lucide-react';
+
+const BookingWizard = lazy(() => import('./components/PublicPortal/BookingWizard').then(m => ({ default: m.BookingWizard })));
+const AdminDashboard = lazy(() => import('./components/Crm/AdminDashboard').then(m => ({ default: m.AdminDashboard })));
+const CrmLoginView = lazy(() => import('./components/Crm/CrmLoginView').then(m => ({ default: m.CrmLoginView })));
+const LookupModal = lazy(() => import('./components/PublicPortal/LookupModal').then(m => ({ default: m.LookupModal })));
+const WebTvModal = lazy(() => import('./components/PublicPortal/WebTvModal').then(m => ({ default: m.WebTvModal })));
+const PolicyModal = lazy(() => import('./components/PublicPortal/PolicyModal').then(m => ({ default: m.PolicyModal })));
 
 export default function App() {
   const [mode, setMode] = useState<'public' | 'booking' | 'admin'>('public');
@@ -115,7 +117,7 @@ export default function App() {
     <div className="min-h-screen flex flex-col bg-slate-50 text-slate-900 font-sans selection:bg-sky-500 selection:text-white w-full max-w-full overflow-x-clip">
       
       {/* Header Sticky Group: Institutional Banner + Navigation Bar permanently fixed on scroll */}
-      <div className={mode !== 'admin' ? "sticky top-0 z-50 w-full bg-white shadow-xs" : "w-full"}>
+      <div className={mode !== 'admin' ? "sticky top-0 z-50 w-full bg-white shadow-xs transform-gpu will-change-transform" : "w-full"}>
         {/* 1. Institutional Banner at top */}
         <InstitutionalBanner />
 
@@ -224,31 +226,63 @@ export default function App() {
           />
         )}
 
-        {mode === 'booking' && (
-          <BookingWizard
-            initialSportelloId={initialSportelloId}
-            initialComune={initialComune}
-            initialGrantTitle={initialGrantTitle}
-            onCancel={() => setMode('public')}
-          />
-        )}
+        <Suspense fallback={
+          <div className="min-h-[50vh] flex flex-col items-center justify-center p-8 text-slate-500">
+            <Loader2 className="w-8 h-8 animate-spin text-sky-600 mb-2" />
+            <span className="text-xs font-semibold">Caricamento in corso...</span>
+          </div>
+        }>
+          {mode === 'booking' && (
+            <BookingWizard
+              initialSportelloId={initialSportelloId}
+              initialComune={initialComune}
+              initialGrantTitle={initialGrantTitle}
+              onCancel={() => setMode('public')}
+            />
+          )}
 
-        {mode === 'admin' && (
-          crmUser ? (
-            <AdminDashboard
-              currentUser={crmUser}
-              onLogout={handleCrmLogout}
-              onExitCrm={() => setMode('public')}
-              initialTab={adminInitialTab}
-              initialSubTab={adminInitialSubTab}
+          {mode === 'admin' && (
+            crmUser ? (
+              <AdminDashboard
+                currentUser={crmUser}
+                onLogout={handleCrmLogout}
+                onExitCrm={() => setMode('public')}
+                initialTab={adminInitialTab}
+                initialSubTab={adminInitialSubTab}
+              />
+            ) : (
+              <CrmLoginView
+                onLoginSuccess={handleCrmLoginSuccess}
+                onExitCrm={() => setMode('public')}
+              />
+            )
+          )}
+
+          {/* Lookup / Search modal */}
+          {showLookupModal && (
+            <LookupModal
+              isOpen={showLookupModal}
+              onClose={() => setShowLookupModal(false)}
             />
-          ) : (
-            <CrmLoginView
-              onLoginSuccess={handleCrmLoginSuccess}
-              onExitCrm={() => setMode('public')}
+          )}
+
+          {/* Web TV Player Modal */}
+          {selectedWebTvVideo && (
+            <WebTvModal
+              video={selectedWebTvVideo}
+              onClose={() => setSelectedWebTvVideo(null)}
+              onBookForVideo={handleBookFromVideo}
             />
-          )
-        )}
+          )}
+
+          {/* Privacy & Cookie Policy Modal */}
+          {policyModalType && (
+            <PolicyModal
+              type={policyModalType}
+              onClose={() => setPolicyModalType(null)}
+            />
+          )}
+        </Suspense>
       </div>
 
       {/* 4. Public Footer (Rendered in Public & Booking modes) */}
@@ -292,27 +326,6 @@ export default function App() {
             </div>
           </div>
         </footer>
-      )}
-
-      {/* Lookup / Search modal */}
-      <LookupModal
-        isOpen={showLookupModal}
-        onClose={() => setShowLookupModal(false)}
-      />
-
-      {/* Web TV Player Modal */}
-      <WebTvModal
-        video={selectedWebTvVideo}
-        onClose={() => setSelectedWebTvVideo(null)}
-        onBookForVideo={handleBookFromVideo}
-      />
-
-      {/* Privacy & Cookie Policy Modal */}
-      {policyModalType && (
-        <PolicyModal
-          type={policyModalType}
-          onClose={() => setPolicyModalType(null)}
-        />
       )}
 
     </div>
