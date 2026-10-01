@@ -140,6 +140,19 @@ const EventTickerBanner: React.FC<{ events: EventoItem[] }> = React.memo(({ even
   );
 });
 
+// Helper per generare l'URL della miniatura WebP/JPEG (30KB) evitando il download di locandine raw ad altissima risoluzione (3MB+)
+const getLocandinaThumbUrl = (url: string | undefined): string => {
+  if (!url) return '';
+  if (url.startsWith('data:')) return url;
+  if (url.startsWith('/uploads/') || url.includes('/uploads/')) {
+    const cleanUrl = url.split('?')[0];
+    if (/\.(jpe?g|png)$/i.test(cleanUrl)) {
+      return cleanUrl.replace(/\.(jpe?g|png)$/i, '-thumb.webp');
+    }
+  }
+  return url;
+};
+
 export const LandingView: React.FC<LandingViewProps> = ({
   onStartBooking,
   onOpenWebTvModal,
@@ -627,15 +640,23 @@ export const LandingView: React.FC<LandingViewProps> = ({
                           </div>
                         </div>
                       ) : (evento.manifesto_url.startsWith('/') || evento.manifesto_url.startsWith('http') || evento.manifesto_url.startsWith('data:')) ? (
-                        /* Miniatura Locandina Immagine JPEG / PNG */
+                        /* Miniatura Locandina Immagine Ottimizzata WebP / JPEG (~30KB) */
                         <div className="mt-3.5 rounded-xl border border-slate-200 overflow-hidden bg-slate-100 shadow-2xs group-hover:border-sky-300 transition-all">
                           <div className="relative h-28 sm:h-32 w-full bg-slate-200/60 overflow-hidden">
                             <img
-                              src={evento.manifesto_url}
+                              src={getLocandinaThumbUrl(evento.manifesto_url)}
                               alt={evento.titolo}
                               className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                              loading="eager"
+                              loading="lazy"
                               decoding="async"
+                              onError={(e) => {
+                                const target = e.currentTarget;
+                                if (target.src.endsWith('-thumb.webp')) {
+                                  target.src = target.src.replace('-thumb.webp', '-thumb.jpg');
+                                } else if (target.src.endsWith('-thumb.jpg')) {
+                                  target.src = evento.manifesto_url;
+                                }
+                              }}
                             />
                           </div>
                         </div>

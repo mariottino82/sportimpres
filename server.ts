@@ -13,6 +13,7 @@ try {
 import express from 'express';
 import compression from 'compression';
 import crypto from 'crypto';
+import sharp from 'sharp';
 import { createServer as createViteServer } from 'vite';
 import { getDb, queryAll, queryOne, run, purgeSampleTestData } from './server/db.js';
 import { matchBandiForProfile } from './server/gemini.js';
@@ -41,6 +42,135 @@ const uploadsDir = path.resolve(process.cwd(), 'public', 'uploads');
 if (!fs.existsSync(uploadsDir)) {
   fs.mkdirSync(uploadsDir, { recursive: true });
 }
+
+// Scansione e auto-ottimizzazione in background all'avvio del server:
+// Riduce automaticamente file locandina JPEG/PNG pesanti (>500KB) e genera miniature WebP/JPEG super-veloci
+async function autoOptimizeExistingUploads() {
+  try {
+    if (!fs.existsSync(uploadsDir)) return;
+    const files = fs.readdirSync(uploadsDir);
+    for (const file of files) {
+      if (file.endsWith('.orig.jpg') || file.endsWith('-thumb.webp') || file.endsWith('-thumb.jpg')) continue;
+      const fullPath = path.join(uploadsDir, file);
+      if (!fs.existsSync(fullPath)) continue;
+      const stat = fs.statSync(fullPath);
+
+      if (/\.(jpe?g|png)$/i.test(file)) {
+        const thumbWebp = path.join(uploadsDir, file.replace(/\.(jpe?g|png)$/i, '-thumb.webp'));
+        const thumbJpg = path.join(uploadsDir, file.replace(/\.(jpe?g|png)$/i, '-thumb.jpg'));
+        const backupPath = path.join(uploadsDir, file.replace(/\.(jpe?g|png)$/i, '.orig.jpg'));
+        const isTooLarge = stat.size > 500 * 1024; // >500KB
+        const needsThumb = !fs.existsSync(thumbWebp) || !fs.existsSync(thumbJpg);
+
+        if (needsThumb || isTooLarge) {
+          console.log(`[IMAGE OPTIMIZER] Ottimizzazione file locandina: ${file} (${Math.round(stat.size / 1024)} KB)...`);
+          if (!fs.existsSync(backupPath) && isTooLarge) {
+            fs.copyFileSync(fullPath, backupPath);
+          }
+          const sourcePath = fs.existsSync(backupPath) ? backupPath : fullPath;
+
+          if (!fs.existsSync(thumbWebp)) {
+            await sharp(sourcePath)
+              .resize({ width: 480, withoutEnlargement: true })
+              .webp({ quality: 82 })
+              .toFile(thumbWebp);
+          }
+
+          if (!fs.existsSync(thumbJpg)) {
+            await sharp(sourcePath)
+              .resize({ width: 480, withoutEnlargement: true })
+              .jpeg({ quality: 82, mozjpeg: true })
+              .toFile(thumbJpg);
+          }
+
+          if (isTooLarge) {
+            const optBuffer = await sharp(sourcePath)
+              .resize({ width: 1600, withoutEnlargement: true })
+              .jpeg({ quality: 84, mozjpeg: true })
+              .toBuffer();
+            fs.writeFileSync(fullPath, optBuffer);
+          }
+        }
+      }
+    }
+  } catch (err) {
+    console.error('[IMAGE OPTIMIZER] Errore ottimizzazione automatica:', err);
+  }
+}
+
+// Avvia l'ottimizzazione in background senza bloccare il boot
+setTimeout(() => {
+  autoOptimizeExistingUploads().catch(console.error);
+}, 2000);
+
+// Endpoint dedicato miniature veloci: /uploads/thumb/:filename o /uploads/:filename?thumb=1
+app.get('/uploads/thumb/:filename', async (req, res, next) => {
+  try {
+    const { filename } = req.params;
+    const directPath = path.join(uploadsDir, filename);
+    if (fs.existsSync(directPath)) {
+      res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+      return res.sendFile(directPath);
+    }
+
+    // Se richiesta /uploads/thumb/xxx-thumb.webp oppure /uploads/thumb/xxx.jpg
+    const baseName = filename.replace(/-thumb\.(webp|jpe?g)$/i, '').replace(/\.(webp|jpe?g|png)$/i, '');
+    const candidates = [`${baseName}.jpg`, `${baseName}.jpeg`, `${baseName}.png`, `${baseName}.orig.jpg`];
+    for (const cand of candidates) {
+      const candPath = path.join(uploadsDir, cand);
+      if (fs.existsSync(candPath)) {
+        const isWebp = filename.endsWith('.webp') || (req.headers.accept || '').includes('image/webp');
+        const transformer = sharp(candPath).resize({ width: 480, withoutEnlargement: true });
+        const buf = isWebp
+          ? await transformer.webp({ quality: 82 }).toBuffer()
+          : await transformer.jpeg({ quality: 82, mozjpeg: true }).toBuffer();
+        res.setHeader('Content-Type', isWebp ? 'image/webp' : 'image/jpeg');
+        res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+        return res.send(buf);
+      }
+    }
+    return next();
+  } catch (err) {
+    return next(err);
+  }
+});
+
+// Intercettore di sicurezza: se viene richiesta un'immagine con ?thumb=1 o ?w=...
+app.get('/uploads/:filename', async (req, res, next) => {
+  const { filename } = req.params;
+  const { thumb, w } = req.query;
+
+  // Se è specificamente richiesta miniatura con thumb=1 o w
+  if (thumb || w) {
+    const width = Math.min(Math.max(parseInt(w as string, 10) || 480, 50), 1600);
+    const acceptWebp = (req.headers.accept || '').includes('image/webp');
+    const thumbName = filename.replace(/\.(jpe?g|png)$/i, acceptWebp ? `-thumb.webp` : `-thumb.jpg`);
+    const thumbPath = path.join(uploadsDir, thumbName);
+
+    if (fs.existsSync(thumbPath)) {
+      res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+      return res.sendFile(thumbPath);
+    }
+
+    const originalPath = path.join(uploadsDir, filename);
+    if (fs.existsSync(originalPath) && /\.(jpe?g|png)$/i.test(filename)) {
+      try {
+        const pipeline = sharp(originalPath).resize({ width, withoutEnlargement: true });
+        const buf = acceptWebp
+          ? await pipeline.webp({ quality: 82 }).toBuffer()
+          : await pipeline.jpeg({ quality: 82, mozjpeg: true }).toBuffer();
+        res.setHeader('Content-Type', acceptWebp ? 'image/webp' : 'image/jpeg');
+        res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+        return res.send(buf);
+      } catch {
+        // Fallback a static
+      }
+    }
+  }
+
+  next();
+});
+
 app.use('/uploads', express.static(uploadsDir, {
   maxAge: '7d',
   setHeaders: (res) => {
@@ -49,7 +179,7 @@ app.use('/uploads', express.static(uploadsDir, {
 }));
 
 // Endpoint dedicato per l'upload di locandina in formato JPEG, PNG o PDF
-app.post('/api/upload-locandina', (req, res) => {
+app.post('/api/upload-locandina', async (req, res) => {
   try {
     const { fileName, fileData, fileType } = req.body;
     if (!fileData) {
@@ -103,7 +233,49 @@ app.post('/api/upload-locandina', (req, res) => {
     const filePath = path.join(uploadsDir, uniqueFileName);
 
     const buffer = Buffer.from(base64Clean, 'base64');
-    fs.writeFileSync(filePath, buffer);
+
+    if (detectedType === 'image') {
+      try {
+        // Ottimizza e ridimensiona l'immagine principale se enorme (max 1600px width, JPEG qualità 84)
+        const optimizedBuffer = await sharp(buffer)
+          .resize({ width: 1600, withoutEnlargement: true })
+          .jpeg({ quality: 84, mozjpeg: true })
+          .toBuffer();
+        fs.writeFileSync(filePath, optimizedBuffer);
+
+        // Genera immediatamente miniatura WebP super-leggera (480px, ~30KB)
+        const thumbWebpName = uniqueFileName.replace(/\.(jpe?g|png|webp)$/i, '-thumb.webp');
+        const thumbWebpPath = path.join(uploadsDir, thumbWebpName);
+        await sharp(buffer)
+          .resize({ width: 480, withoutEnlargement: true })
+          .webp({ quality: 82 })
+          .toFile(thumbWebpPath);
+
+        // Genera anche miniatura JPEG di fallback
+        const thumbJpgName = uniqueFileName.replace(/\.(jpe?g|png|webp)$/i, '-thumb.jpg');
+        const thumbJpgPath = path.join(uploadsDir, thumbJpgName);
+        await sharp(buffer)
+          .resize({ width: 480, withoutEnlargement: true })
+          .jpeg({ quality: 82, mozjpeg: true })
+          .toFile(thumbJpgPath);
+
+        const publicUrl = `/uploads/${uniqueFileName}`;
+        return res.json({
+          success: true,
+          url: publicUrl,
+          thumbUrl: `/uploads/${thumbWebpName}`,
+          fileName: fileName || uniqueFileName,
+          fileType: detectedType,
+          sizeBytes: optimizedBuffer.length
+        });
+      } catch (sharpErr) {
+        console.warn('[UPLOAD LOCANDINA] Sharp fallback a salvataggio diretto:', sharpErr);
+        fs.writeFileSync(filePath, buffer);
+      }
+    } else {
+      // PDF salvataggio diretto
+      fs.writeFileSync(filePath, buffer);
+    }
 
     const publicUrl = `/uploads/${uniqueFileName}`;
     res.json({
