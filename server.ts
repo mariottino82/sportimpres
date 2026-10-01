@@ -824,6 +824,54 @@ app.post('/api/prenotazioni/lock-slot', (req, res) => {
 });
 
 // ----------------------------------------------------
+// UNIQUE BOOKING CODE GENERATOR (Garantito anti-collisione)
+// ----------------------------------------------------
+
+function generateUniqueBookingCode(): string {
+  let highestNum = 124;
+  try {
+    const existingCodes = queryAll<{ codice: string }>("SELECT codice FROM appuntamenti WHERE codice LIKE 'SI-2026-%'");
+    for (const row of existingCodes) {
+      const match = row.codice.match(/SI-2026-(\d+)/);
+      if (match) {
+        const val = parseInt(match[1], 10);
+        if (!isNaN(val) && val > highestNum) {
+          highestNum = val;
+        }
+      }
+    }
+
+    const maxIdRow = queryOne('SELECT MAX(id) as maxId FROM appuntamenti');
+    if (maxIdRow?.maxId) {
+      const idVal = Number(maxIdRow.maxId) + 124;
+      if (idVal > highestNum) {
+        highestNum = idVal;
+      }
+    }
+  } catch (err) {
+    console.warn('[BOOKING CODE] Errore lettura sequenziale:', err);
+  }
+
+  // Cerca il primo codice sequenziale libero
+  for (let step = 1; step <= 100; step++) {
+    const candidate = `SI-2026-${String(highestNum + step).padStart(6, '0')}`;
+    const exists = queryOne('SELECT 1 FROM appuntamenti WHERE codice = ?', [candidate]);
+    if (!exists) {
+      return candidate;
+    }
+  }
+
+  // Fallback ad alta entropia garantito univoco (in caso di sequenze concorrenti sature)
+  let fallbackCode = '';
+  do {
+    const rand = Math.floor(100000 + Math.random() * 900000);
+    fallbackCode = `SI-2026-${rand}`;
+  } while (queryOne('SELECT 1 FROM appuntamenti WHERE codice = ?', [fallbackCode]));
+
+  return fallbackCode;
+}
+
+// ----------------------------------------------------
 // PUBLIC API: CREATE APPOINTMENT & PROFILE
 // ----------------------------------------------------
 
@@ -960,21 +1008,34 @@ app.post('/api/prenotazioni', async (req, res) => {
       }
     }
 
-    // 4. Generate unique readable booking code: SI-2026-XXXXXX
-    const countRow = queryOne('SELECT COUNT(*) as c FROM appuntamenti');
-    const seq = (countRow?.c || 0) + 124;
-    const codice = `SI-2026-${String(seq).padStart(6, '0')}`;
+    // 4. Generate unique readable booking code: SI-2026-XXXXXX con auto-retry anti-collisione
+    let insAppt: any;
+    let codice = '';
+    let videocallLink = '';
     const tokenModifica = crypto.randomBytes(16).toString('hex');
+    let attempts = 0;
 
-    // Videocall link if modalita === VIDEOCALL
-    const videocallLink = modalita === 'VIDEOCALL' ? `https://meet.jit.si/SportelloImpreseMolise-${codice}` : '';
+    while (attempts < 5) {
+      try {
+        codice = generateUniqueBookingCode();
+        videocallLink = modalita === 'VIDEOCALL' ? `https://meet.jit.si/SportelloImpreseMolise-${codice}` : '';
 
-    // Insert appuntamento
-    const insAppt = run(`
-      INSERT INTO appuntamenti
-      (codice, utente_id, sportello_id, data_ora, durata_minuti, modalita, videocall_link, stato, motivo_testo, categoria_bisogno, token_modifica, creato_il)
-      VALUES (?, ?, ?, ?, 30, ?, ?, 'CONFERMATO', ?, ?, ?, ?)
-    `, [codice, utenteId, sportelloId, datetime, modalita, videocallLink, motivo.testoLibero || '', motivo.categoriaBisogno || 'Bandi e finanziamenti', tokenModifica, nowStr]);
+        insAppt = run(`
+          INSERT INTO appuntamenti
+          (codice, utente_id, sportello_id, data_ora, durata_minuti, modalita, videocall_link, stato, motivo_testo, categoria_bisogno, token_modifica, creato_il)
+          VALUES (?, ?, ?, ?, 30, ?, ?, 'CONFERMATO', ?, ?, ?, ?)
+        `, [codice, utenteId, sportelloId, datetime, modalita, videocallLink, motivo.testoLibero || '', motivo.categoriaBisogno || 'Bandi e finanziamenti', tokenModifica, nowStr]);
+
+        break; // Inserimento riuscito!
+      } catch (insertErr: any) {
+        if (insertErr?.message?.includes('UNIQUE constraint failed: appuntamenti.codice')) {
+          attempts++;
+          console.warn(`[BOOKING CONFLICT] Collisione codice ${codice}, rigenerazione tentativo ${attempts}/5...`);
+          continue;
+        }
+        throw insertErr;
+      }
+    }
 
     // Clear slot lock
     const lockKey = `${sportelloId}-${datetime}`;
@@ -1550,18 +1611,35 @@ app.post('/api/crm/appuntamenti', async (req, res) => {
       return res.status(400).json({ error: 'utenteId, sportelloId e dataOra sono obbligatori' });
     }
 
-    const countRow = queryOne('SELECT COUNT(*) as c FROM appuntamenti');
-    const seq = (countRow?.c || 0) + 125;
-    const codice = `SI-2026-${String(seq).padStart(6, '0')}`;
     const token = crypto.randomBytes(16).toString('hex');
     const nowStr = new Date().toISOString().replace('T', ' ').substring(0, 19);
-    const videocallLink = modalita === 'VIDEOCALL' ? `https://meet.jit.si/SportelloImpreseMolise-${codice}` : '';
 
-    const ins = run(`
-      INSERT INTO appuntamenti
-      (codice, utente_id, sportello_id, data_ora, durata_minuti, modalita, videocall_link, stato, motivo_testo, categoria_bisogno, token_modifica, creato_il, note_operatore)
-      VALUES (?, ?, ?, ?, 30, ?, ?, 'CONFERMATO', ?, ?, ?, ?, ?)
-    `, [codice, utenteId, sportelloId, dataOra, modalita || 'PRESENZA', videocallLink, motivo || 'Prenotazione da Contact Center', categoria || 'Bandi e finanziamenti', token, nowStr, note || '']);
+    let ins: any;
+    let codice = '';
+    let videocallLink = '';
+    let attempts = 0;
+
+    while (attempts < 5) {
+      try {
+        codice = generateUniqueBookingCode();
+        videocallLink = modalita === 'VIDEOCALL' ? `https://meet.jit.si/SportelloImpreseMolise-${codice}` : '';
+
+        ins = run(`
+          INSERT INTO appuntamenti
+          (codice, utente_id, sportello_id, data_ora, durata_minuti, modalita, videocall_link, stato, motivo_testo, categoria_bisogno, token_modifica, creato_il, note_operatore)
+          VALUES (?, ?, ?, ?, 30, ?, ?, 'CONFERMATO', ?, ?, ?, ?, ?)
+        `, [codice, utenteId, sportelloId, dataOra, modalita || 'PRESENZA', videocallLink, motivo || 'Prenotazione da Contact Center', categoria || 'Bandi e finanziamenti', token, nowStr, note || '']);
+
+        break;
+      } catch (insertErr: any) {
+        if (insertErr?.message?.includes('UNIQUE constraint failed: appuntamenti.codice')) {
+          attempts++;
+          console.warn(`[CRM BOOKING CONFLICT] Collisione codice ${codice}, rigenerazione tentativo ${attempts}/5...`);
+          continue;
+        }
+        throw insertErr;
+      }
+    }
 
     let emailSent = false;
     if (inviaEmail) {
@@ -2589,13 +2667,59 @@ async function startServer() {
     });
     app.use(vite.middlewares);
   } else {
-    const distPath = path.join(process.cwd(), 'dist');
+    const possibleDistPaths = [
+      path.join(process.cwd(), 'dist'),
+      __dirname,
+      path.resolve(__dirname, '..', 'dist')
+    ];
+    const distPath = possibleDistPaths.find(p => fs.existsSync(path.join(p, 'index.html'))) || path.join(process.cwd(), 'dist');
+
+    // Fallback intelligente per chunk dinamici richiesti da vecchie sessioni browser (es. BookingWizard-*.js)
+    app.get('/assets/:file', (req, res, next) => {
+      const { file } = req.params;
+      const directFile = path.join(distPath, 'assets', file);
+      if (fs.existsSync(directFile)) {
+        return next();
+      }
+
+      // Se non esiste esattamente quel file (es. dopo nuovo deploy con nuovo hash Vite),
+      // cerca un chunk corrispondente con lo stesso prefisso (es. BookingWizard-*.js o PdfPromemoriaModal-*.js)
+      const prefixMatch = file.match(/^([a-zA-Z0-9_\-]+?)-[a-zA-Z0-9_\-]+\.(js|css)$/);
+      if (prefixMatch) {
+        const prefix = prefixMatch[1];
+        const ext = prefixMatch[2];
+        try {
+          const assetsDir = path.join(distPath, 'assets');
+          if (fs.existsSync(assetsDir)) {
+            const allFiles = fs.readdirSync(assetsDir);
+            const candidate = allFiles.find(f => f.startsWith(`${prefix}-`) && f.endsWith(`.${ext}`));
+            if (candidate) {
+              const fullCandidate = path.join(assetsDir, candidate);
+              console.log(`[ASSET RECOVERY] Servito ${candidate} per richiesta vecchio chunk ${file}`);
+              res.setHeader('Content-Type', ext === 'js' ? 'application/javascript; charset=UTF-8' : 'text/css; charset=UTF-8');
+              res.setHeader('Cache-Control', 'no-cache, must-revalidate');
+              return res.sendFile(fullCandidate);
+            }
+          }
+        } catch {
+          // ignore
+        }
+      }
+      next();
+    });
+
     app.use(express.static(distPath, {
-      maxAge: '1d',
+      maxAge: 0,
       setHeaders: (res, filePath) => {
         if (filePath.includes(path.sep + 'assets' + path.sep)) {
           // Vite hashed bundles are immutable
           res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+        } else if (filePath.endsWith('index.html')) {
+          // CRITICO: index.html non deve MAI essere memorizzato nella cache del browser
+          // Altrimenti gli utenti rimangono bloccati sui vecchi chunk dopo un deploy!
+          res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+          res.setHeader('Pragma', 'no-cache');
+          res.setHeader('Expires', '0');
         } else if (/\.(svg|png|jpg|jpeg|webp|gif|ico|woff2?)$/i.test(filePath)) {
           res.setHeader('Cache-Control', 'public, max-age=86400');
         }
@@ -2607,6 +2731,9 @@ async function startServer() {
       if (/\.[a-zA-Z0-9]+$/.test(req.path)) {
         return res.status(404).send('Not found');
       }
+      res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+      res.setHeader('Pragma', 'no-cache');
+      res.setHeader('Expires', '0');
       res.sendFile(path.join(distPath, 'index.html'));
     });
   }

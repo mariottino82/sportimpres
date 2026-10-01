@@ -9,12 +9,32 @@ import {
   Loader2
 } from 'lucide-react';
 
-const BookingWizard = lazy(() => import('./components/PublicPortal/BookingWizard').then(m => ({ default: m.BookingWizard })));
-const AdminDashboard = lazy(() => import('./components/Crm/AdminDashboard').then(m => ({ default: m.AdminDashboard })));
-const CrmLoginView = lazy(() => import('./components/Crm/CrmLoginView').then(m => ({ default: m.CrmLoginView })));
-const LookupModal = lazy(() => import('./components/PublicPortal/LookupModal').then(m => ({ default: m.LookupModal })));
-const WebTvModal = lazy(() => import('./components/PublicPortal/WebTvModal').then(m => ({ default: m.WebTvModal })));
-const PolicyModal = lazy(() => import('./components/PublicPortal/PolicyModal').then(m => ({ default: m.PolicyModal })));
+function lazyWithRetry<T extends React.ComponentType<any>>(
+  factory: () => Promise<{ default: T }>
+): React.LazyExoticComponent<T> {
+  return lazy(async () => {
+    try {
+      return await factory();
+    } catch (error) {
+      console.warn('[LAZY CHUNK ERROR] Fallback a ricaricamento pagina:', error);
+      const hasReloaded = sessionStorage.getItem('chunk_reload_attempt');
+      if (!hasReloaded) {
+        sessionStorage.setItem('chunk_reload_attempt', 'true');
+        window.location.reload();
+        return new Promise<{ default: T }>(() => {});
+      }
+      sessionStorage.removeItem('chunk_reload_attempt');
+      throw error;
+    }
+  });
+}
+
+const BookingWizard = lazyWithRetry(() => import('./components/PublicPortal/BookingWizard').then(m => ({ default: m.BookingWizard })));
+const AdminDashboard = lazyWithRetry(() => import('./components/Crm/AdminDashboard').then(m => ({ default: m.AdminDashboard })));
+const CrmLoginView = lazyWithRetry(() => import('./components/Crm/CrmLoginView').then(m => ({ default: m.CrmLoginView })));
+const LookupModal = lazyWithRetry(() => import('./components/PublicPortal/LookupModal').then(m => ({ default: m.LookupModal })));
+const WebTvModal = lazyWithRetry(() => import('./components/PublicPortal/WebTvModal').then(m => ({ default: m.WebTvModal })));
+const PolicyModal = lazyWithRetry(() => import('./components/PublicPortal/PolicyModal').then(m => ({ default: m.PolicyModal })));
 
 export default function App() {
   const [mode, setMode] = useState<'public' | 'booking' | 'admin'>('public');

@@ -140,6 +140,7 @@ export const BookingWizard: React.FC<BookingWizardProps> = ({
 
   // Confirmation & Final (S8 & S9)
   const [submitting, setSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
   const [completedAppointment, setCompletedAppointment] = useState<Appointment | null>(null);
   const [confirmedSportello, setConfirmedSportello] = useState<Sportello | null>(null);
   const [showPdfModal, setShowPdfModal] = useState(false);
@@ -325,6 +326,7 @@ export const BookingWizard: React.FC<BookingWizardProps> = ({
     if (!selectedSportello || !selectedSlot) return;
 
     setSubmitting(true);
+    setSubmitError(null);
     try {
       const payload = {
         tipo: userType,
@@ -400,7 +402,11 @@ export const BookingWizard: React.FC<BookingWizardProps> = ({
 
       setStep(9); // Go to S9
     } catch (err: any) {
-      alert(`Errore: ${err.message}`);
+      console.error('Errore creazione prenotazione:', err);
+      const msg = err.message?.includes('UNIQUE constraint')
+        ? 'Si è verificato un temporaneo conflitto con il codice appuntamento. Clicca di nuovo su Conferma: il sistema genererà un nuovo codice univoco.'
+        : (err.message || 'Si è verificato un errore durante la registrazione della prenotazione.');
+      setSubmitError(msg);
     } finally {
       setSubmitting(false);
     }
@@ -1786,6 +1792,14 @@ export const BookingWizard: React.FC<BookingWizardProps> = ({
                 </div>
               </div>
             </div>
+
+            {/* In-UI Error Banner */}
+            {submitError && (
+              <div className="p-4 rounded-xl bg-red-50 border border-red-200 text-red-700 text-xs font-medium flex items-center gap-2.5">
+                <AlertCircle className="w-5 h-5 shrink-0 text-red-600" />
+                <span className="flex-1">{submitError}</span>
+              </div>
+            )}
 
             {/* Actions */}
             <div className="flex items-center justify-between pt-4 border-t border-slate-100">
