@@ -441,7 +441,7 @@ export async function sendAppointmentConfirmationEmail(
                 </tr>
                 <tr>
                   <td style="font-weight:700; color:#475569;">Contatti Sede:</td>
-                  <td>Tel: <strong>${params.sportelloTelefono}</strong> • Email: <a href="mailto:${params.sportelloEmail}" style="color:#0284c7;">${params.sportelloEmail}</a></td>
+                  <td>Tel: <strong>${params.sportelloTelefono}</strong> • Email: <a href="mailto:info@sviluppoitalia.eu" style="color:#0284c7;">info@sviluppoitalia.eu</a></td>
                 </tr>
                 <tr style="background-color:#f8fafc;">
                   <td style="font-weight:700; color:#475569;">Ambito Richiesto:</td>
