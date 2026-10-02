@@ -76,7 +76,7 @@ function initTables(db: Database.Database) {
       nome TEXT NOT NULL,
       indirizzo TEXT NOT NULL,
       telefono TEXT DEFAULT '0874 011011',
-      email TEXT DEFAULT 'sportelloimprese@sviluppoitaliamolise.it',
+      email TEXT DEFAULT 'info@sviluppoitaliamolise.eu',
       lat REAL NOT NULL,
       lng REAL NOT NULL,
       giorni TEXT NOT NULL,
@@ -308,7 +308,7 @@ export function syncSmtpConfig(db: Database.Database): void {
       const dbPass = getVal('smtp_pass');
       const dbFromName = getVal('smtp_from_name') || 'Sportello Imprese Molise';
       const dbFromEmail = getVal('smtp_from_email') || dbUser || 'info@sviluppoitaliamolise.eu';
-      const dbReplyTo = getVal('smtp_reply_to') || 'sportelloimprese@sviluppoitaliamolise.it';
+      const dbReplyTo = getVal('smtp_reply_to') || 'info@sviluppoitaliamolise.eu';
 
       if (dbHost && dbUser && dbPass) {
         process.env.SMTP_HOST = dbHost;
@@ -331,7 +331,7 @@ export function syncSmtpConfig(db: Database.Database): void {
           pass: 'Sporimp2026!',
           from_name: 'Sportello Imprese Molise',
           from_email: 'info@sviluppoitaliamolise.eu',
-          reply_to: 'sportelloimprese@sviluppoitaliamolise.it'
+          reply_to: 'info@sviluppoitaliamolise.eu'
         };
 
         const jsonFile = path.resolve(process.cwd(), 'server', 'smtp.config.json');
@@ -347,7 +347,7 @@ export function syncSmtpConfig(db: Database.Database): void {
                 pass: parsed.pass,
                 from_name: parsed.fromName || 'Sportello Imprese Molise',
                 from_email: parsed.fromEmail || parsed.user || 'info@sviluppoitaliamolise.eu',
-                reply_to: parsed.replyTo || 'sportelloimprese@sviluppoitaliamolise.it'
+                reply_to: parsed.replyTo || 'info@sviluppoitaliamolise.eu'
               };
             }
           } catch {
@@ -402,7 +402,7 @@ export function syncSmtpConfig(db: Database.Database): void {
           `SMTP_PASS=${activePass}`,
           `SMTP_FROM_NAME="${process.env.SMTP_FROM_NAME || getVal('smtp_from_name') || 'Sportello Imprese Molise'}"`,
           `SMTP_FROM_EMAIL=${process.env.SMTP_FROM_EMAIL || getVal('smtp_from_email') || activeUser}`,
-          `SMTP_REPLY_TO=${process.env.SMTP_REPLY_TO || getVal('smtp_reply_to') || 'sportelloimprese@sviluppoitaliamolise.it'}`,
+          `SMTP_REPLY_TO=${process.env.SMTP_REPLY_TO || getVal('smtp_reply_to') || 'info@sviluppoitaliamolise.eu'}`,
           '',
           'DATABASE_PATH=sportello.db',
           'SEED_SAMPLE_DATA=false',
@@ -477,7 +477,7 @@ function migrateSportelliColumns(db: Database.Database) {
         WHERE responsabile_nome IS NULL OR responsabile_nome = '';
 
         UPDATE sportelli SET
-          responsabile_email = 'sportelloimprese@sviluppoitaliamolise.it'
+          responsabile_email = 'info@sviluppoitaliamolise.eu'
         WHERE responsabile_email IS NULL OR responsabile_email = '';
 
         UPDATE sportelli SET
@@ -728,7 +728,7 @@ function seedInitialData(db: Database.Database) {
         s.nome,
         s.indirizzo,
         '0874 011011',
-        'sportelloimprese@sviluppoitaliamolise.it',
+        'info@sviluppoitaliamolise.eu',
         s.lat,
         s.lng,
         s.giorni,
@@ -736,7 +736,7 @@ function seedInitialData(db: Database.Database) {
         s.cadenza,
         s.operatori,
         s.responsabileNome,
-        'sportelloimprese@sviluppoitaliamolise.it',
+        'info@sviluppoitaliamolise.eu',
         '0874 011011',
         1,
         `https://meet.jit.si/SportelloImpreseMolise_${idx + 1}`,

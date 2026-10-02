@@ -1,7 +1,7 @@
 import React, { useState, useEffect, Suspense, lazy } from 'react';
 import { InstitutionalBanner, InstitutionalLogosStrip, Logo } from './components/Logo';
 import { LandingView } from './components/PublicPortal/LandingView';
-import { WebTvVideo, CrmOperator } from './types';
+import { WebTvVideo, CrmOperator, UserType } from './types';
 import {
   Calendar,
   Lock,
@@ -53,6 +53,7 @@ export default function App() {
   const [initialSportelloId, setInitialSportelloId] = useState<string | undefined>(undefined);
   const [initialComune, setInitialComune] = useState<string | undefined>(undefined);
   const [initialGrantTitle, setInitialGrantTitle] = useState<string | undefined>(undefined);
+  const [initialUserType, setInitialUserType] = useState<UserType | undefined>(undefined);
 
   // Modals
   const [showLookupModal, setShowLookupModal] = useState(false);
@@ -84,17 +85,32 @@ export default function App() {
   }, []);
 
   const handleStartBooking = (
-    sportelloOrParams?: string | { userType?: 'IMPRESA' | 'ASPIRANTE'; initialSportelloId?: number; source?: string; grantTitle?: string },
+    sportelloOrParams?: string | number | { userType?: 'IMPRESA' | 'ASPIRANTE'; initialSportelloId?: number | string; source?: string; grantTitle?: string },
     comune?: string,
     grantTitle?: string
   ) => {
     if (typeof sportelloOrParams === 'object' && sportelloOrParams !== null) {
-      if (sportelloOrParams.initialSportelloId) setInitialSportelloId(String(sportelloOrParams.initialSportelloId));
-      if (sportelloOrParams.grantTitle) setInitialGrantTitle(sportelloOrParams.grantTitle);
-    } else if (typeof sportelloOrParams === 'string') {
-      setInitialSportelloId(sportelloOrParams);
+      if (sportelloOrParams.userType) {
+        setInitialUserType(sportelloOrParams.userType);
+      } else {
+        setInitialUserType(undefined);
+      }
+      if (sportelloOrParams.initialSportelloId !== undefined && sportelloOrParams.initialSportelloId !== null) {
+        setInitialSportelloId(String(sportelloOrParams.initialSportelloId));
+      } else {
+        setInitialSportelloId(undefined);
+      }
+      setInitialGrantTitle(sportelloOrParams.grantTitle || undefined);
+    } else if (typeof sportelloOrParams === 'string' || typeof sportelloOrParams === 'number') {
+      setInitialSportelloId(String(sportelloOrParams));
+      setInitialGrantTitle(grantTitle || undefined);
+      setInitialUserType(undefined);
+    } else {
+      setInitialSportelloId(undefined);
+      setInitialGrantTitle(undefined);
+      setInitialUserType(undefined);
     }
-    if (comune) setInitialComune(comune);
+    setInitialComune(comune || undefined);
     if (grantTitle) setInitialGrantTitle(grantTitle);
     setMode('booking');
     window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -251,10 +267,23 @@ export default function App() {
         }>
           {mode === 'booking' && (
             <BookingWizard
+              initialUserType={initialUserType}
               initialSportelloId={initialSportelloId}
               initialComune={initialComune}
               initialGrantTitle={initialGrantTitle}
-              onCancel={() => setMode('public')}
+              onCancel={() => {
+                setInitialSportelloId(undefined);
+                setInitialComune(undefined);
+                setInitialGrantTitle(undefined);
+                setInitialUserType(undefined);
+                setMode('public');
+              }}
+              onComplete={() => {
+                setInitialSportelloId(undefined);
+                setInitialComune(undefined);
+                setInitialGrantTitle(undefined);
+                setInitialUserType(undefined);
+              }}
             />
           )}
 

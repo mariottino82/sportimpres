@@ -156,7 +156,7 @@ export const SportelliManagerView: React.FC<SportelliManagerViewProps> = ({
     provincia: 'CB',
     indirizzo: '',
     telefono: '0874 011011',
-    email: 'sportelloimprese@sviluppoitaliamolise.it',
+    email: 'info@sviluppoitaliamolise.eu',
     lat: 41.5603,
     lng: 14.6627,
     giorni: 'Lunedì, Mercoledì, Venerdì',
@@ -165,7 +165,7 @@ export const SportelliManagerView: React.FC<SportelliManagerViewProps> = ({
     attivo: 1,
     operatori_assegnati: '',
     responsabile_nome: '',
-    responsabile_email: 'sportelloimprese@sviluppoitaliamolise.it',
+    responsabile_email: 'info@sviluppoitaliamolise.eu',
     responsabile_telefono: '0874 011011',
     online_attivo: 1,
     link_videocall: '',
@@ -223,7 +223,7 @@ export const SportelliManagerView: React.FC<SportelliManagerViewProps> = ({
       provincia: 'CB',
       indirizzo: '',
       telefono: '0874 011011',
-      email: 'sportelloimprese@sviluppoitaliamolise.it',
+      email: 'info@sviluppoitaliamolise.eu',
       lat: 41.5603,
       lng: 14.6627,
       giorni: 'Lunedì, Mercoledì, Venerdì',
@@ -232,7 +232,7 @@ export const SportelliManagerView: React.FC<SportelliManagerViewProps> = ({
       attivo: 1,
       operatori_assegnati: '',
       responsabile_nome: currentUser ? `${currentUser.nome} ${currentUser.cognome}` : 'Dott. Responsabile Territoriale',
-      responsabile_email: 'sportelloimprese@sviluppoitaliamolise.it',
+      responsabile_email: 'info@sviluppoitaliamolise.eu',
       responsabile_telefono: '0874 011011',
       online_attivo: 1,
       link_videocall: 'https://meet.jit.si/SportelloImpreseMolise_Nuovo',
@@ -267,7 +267,7 @@ export const SportelliManagerView: React.FC<SportelliManagerViewProps> = ({
       provincia: prov,
       indirizzo: s.indirizzo || '',
       telefono: s.telefono || '0874 011011',
-      email: s.email || 'sportelloimprese@sviluppoitaliamolise.it',
+      email: s.email || 'info@sviluppoitaliamolise.eu',
       lat: s.lat || 41.5603,
       lng: s.lng || 14.6627,
       giorni: s.giorni || 'Lunedì',
@@ -276,7 +276,7 @@ export const SportelliManagerView: React.FC<SportelliManagerViewProps> = ({
       attivo: s.attivo !== undefined ? s.attivo : 1,
       operatori_assegnati: s.operatori_assegnati || '',
       responsabile_nome: s.responsabile_nome || '',
-      responsabile_email: s.responsabile_email || s.email || 'sportelloimprese@sviluppoitaliamolise.it',
+      responsabile_email: s.responsabile_email || s.email || 'info@sviluppoitaliamolise.eu',
       responsabile_telefono: s.responsabile_telefono || s.telefono || '0874 011011',
       online_attivo: s.online_attivo !== undefined ? s.online_attivo : 1,
       link_videocall: s.link_videocall || `https://meet.jit.si/SportelloImpreseMolise_${s.id}`,
@@ -1326,7 +1326,7 @@ export const SportelliManagerView: React.FC<SportelliManagerViewProps> = ({
                       type="email"
                       value={formData.responsabile_email}
                       onChange={(e) => setFormData({ ...formData, responsabile_email: e.target.value })}
-                      placeholder="sportelloimprese@sviluppoitaliamolise.it"
+                      placeholder="info@sviluppoitaliamolise.eu"
                       className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:outline-none focus:border-sky-500"
                     />
                   </div>

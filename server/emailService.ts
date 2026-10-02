@@ -12,7 +12,7 @@ export const DEFAULT_SMTP_CONFIG = {
   pass: 'Sporimp2026!',
   fromName: 'Sportello Imprese Molise',
   fromEmail: 'info@sviluppoitaliamolise.eu',
-  replyTo: 'sportelloimprese@sviluppoitaliamolise.it'
+  replyTo: 'info@sviluppoitaliamolise.eu'
 };
 
 const getLocalDir = (): string => {
@@ -116,7 +116,7 @@ export function reloadEnvFromAllSources(): void {
       process.env.SMTP_PASS = jsonConfig.pass;
       process.env.SMTP_FROM_NAME = jsonConfig.fromName || 'Sportello Imprese Molise';
       process.env.SMTP_FROM_EMAIL = jsonConfig.fromEmail || jsonConfig.user || 'info@sviluppoitaliamolise.eu';
-      process.env.SMTP_REPLY_TO = jsonConfig.replyTo || 'sportelloimprese@sviluppoitaliamolise.it';
+      process.env.SMTP_REPLY_TO = jsonConfig.replyTo || 'info@sviluppoitaliamolise.eu';
     }
   }
 
@@ -257,7 +257,7 @@ export interface SenderConfig {
 
 export function resolveFromSender(): SenderConfig {
   const defaultName = 'Sportello Imprese Molise';
-  const defaultEmail = 'sportelloimprese@sviluppoitaliamolise.it';
+  const defaultEmail = 'info@sviluppoitaliamolise.eu';
 
   const configuredName = (process.env.SMTP_FROM_NAME || '').trim();
   let rawFrom = (process.env.SMTP_FROM || '').trim();
@@ -300,7 +300,7 @@ export function resolveFromSender(): SenderConfig {
 
 export function resolveReplyTo(params?: AppointmentEmailParams): SenderConfig {
   const defaultName = 'Sportello Imprese Molise';
-  const defaultEmail = params?.sportelloEmail || 'sportelloimprese@sviluppoitaliamolise.it';
+  const defaultEmail = params?.sportelloEmail || 'info@sviluppoitaliamolise.eu';
 
   let rawReplyTo = (process.env.SMTP_REPLY_TO || '').trim();
   rawReplyTo = rawReplyTo.replace(/^["'\s]+|["'\s]+$/g, '');
@@ -880,7 +880,7 @@ export async function saveSmtpConfig(newConfig: {
       `SMTP_PASS=${process.env.SMTP_PASS || ''}`,
       `SMTP_FROM_NAME="${process.env.SMTP_FROM_NAME || 'Sportello Imprese Molise'}"`,
       `SMTP_FROM_EMAIL=${process.env.SMTP_FROM_EMAIL || process.env.SMTP_USER || 'info@sviluppoitaliamolise.eu'}`,
-      `SMTP_REPLY_TO=${process.env.SMTP_REPLY_TO || 'sportelloimprese@sviluppoitaliamolise.it'}`,
+      `SMTP_REPLY_TO=${process.env.SMTP_REPLY_TO || 'info@sviluppoitaliamolise.eu'}`,
       '',
       'DATABASE_PATH=sportello.db',
       'SEED_SAMPLE_DATA=false',
@@ -915,7 +915,7 @@ export async function saveSmtpConfig(newConfig: {
       pass: process.env.SMTP_PASS || '',
       fromName: process.env.SMTP_FROM_NAME || 'Sportello Imprese Molise',
       fromEmail: process.env.SMTP_FROM_EMAIL || process.env.SMTP_USER || 'info@sviluppoitaliamolise.eu',
-      replyTo: process.env.SMTP_REPLY_TO || 'sportelloimprese@sviluppoitaliamolise.it'
+      replyTo: process.env.SMTP_REPLY_TO || 'info@sviluppoitaliamolise.eu'
     }, null, 2);
 
     for (const jp of jsonPaths) {

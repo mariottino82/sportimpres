@@ -4,7 +4,7 @@ import { MoliseMap } from '../MoliseMap';
 import { PdfPromemoriaModal } from '../PdfPromemoriaModal';
 import { MOLISE_COMUNI } from '../../data/moliseComuni';
 import { Sportello, UserType, Modality, Appointment } from '../../types';
-import { getSportelloComune } from '../../data/sportelliList';
+import { getSportelloComune, getSportelloArea, AREE } from '../../data/sportelliList';
 import { getUpcomingDatesForSportello } from '../../utils/sportelloSchedule';
 import {
   Building2,
@@ -34,7 +34,9 @@ import {
 
 interface BookingWizardProps {
   initialUserType?: UserType;
-  initialSportelloId?: number;
+  initialSportelloId?: number | string;
+  initialComune?: string;
+  initialGrantTitle?: string;
   initialSource?: string;
   onCancel: () => void;
   onComplete?: (appt: Appointment) => void;
@@ -70,8 +72,11 @@ function validatePartitaIva(piva: string): boolean {
 export const BookingWizard: React.FC<BookingWizardProps> = ({
   initialUserType,
   initialSportelloId,
+  initialComune,
+  initialGrantTitle,
   initialSource,
-  onCancel
+  onCancel,
+  onComplete
 }) => {
   // Wizard Step state: 1 to 9
   const [step, setStep] = useState<number>(initialUserType ? 2 : 1);
@@ -103,7 +108,9 @@ export const BookingWizard: React.FC<BookingWizardProps> = ({
   });
 
   // Motivo del contatto (S4)
-  const [motivoTesto, setMotivoTesto] = useState('');
+  const [motivoTesto, setMotivoTesto] = useState(() => (
+    initialGrantTitle ? `Richiesta informazioni e orientamento per: ${initialGrantTitle}` : ''
+  ));
   const [categoriaBisogno, setCategoriaBisogno] = useState('Bandi e finanziamenti');
 
   // Domande EDP facoltative (S5)
@@ -123,6 +130,14 @@ export const BookingWizard: React.FC<BookingWizardProps> = ({
     fasciaEta: '> 35 anni',
     haPartitaIva: 'No'
   });
+
+  // Se lo sportello è stato preselezionato dall'utente prima di entrare nel wizard
+  const isPreselectedInit = Boolean(
+    (initialSportelloId !== undefined && initialSportelloId !== null && String(initialSportelloId).trim() !== '') ||
+    (initialComune && initialComune.trim() !== '')
+  );
+  const [hasPreselectedSportello, setHasPreselectedSportello] = useState<boolean>(isPreselectedInit);
+  const [showAllSportelli, setShowAllSportelli] = useState<boolean>(false);
 
   // Sportelli & Selection (S6)
   const [sportelli, setSportelli] = useState<Sportello[]>([]);
@@ -188,6 +203,13 @@ export const BookingWizard: React.FC<BookingWizardProps> = ({
     sendEmailConfirmation(true);
   };
 
+  // Aggiorna motivo del contatto se initialGrantTitle cambia
+  useEffect(() => {
+    if (initialGrantTitle && !motivoTesto) {
+      setMotivoTesto(`Richiesta informazioni e orientamento per: ${initialGrantTitle}`);
+    }
+  }, [initialGrantTitle]);
+
   // Fetch sportelli on mount (solo sportelli attivi)
   useEffect(() => {
     fetch('/api/sportelli')
@@ -197,9 +219,26 @@ export const BookingWizard: React.FC<BookingWizardProps> = ({
           ? data.filter((s) => s.attivo === undefined || s.attivo === 1 || (s.attivo as any) === true)
           : [];
         setSportelli(list);
-        if (initialSportelloId) {
-          const found = list.find((s) => s.id === initialSportelloId);
-          if (found) setSelectedSportello(found);
+
+        let target: Sportello | undefined = undefined;
+
+        // 1. Cerca per ID sportello (gestendo sia number che string)
+        if (initialSportelloId !== undefined && initialSportelloId !== null && String(initialSportelloId).trim() !== '') {
+          const numId = Number(initialSportelloId);
+          target = list.find((s) => s.id === numId || String(s.id) === String(initialSportelloId));
+        }
+
+        // 2. Cerca per comune se non trovato per ID
+        if (!target && initialComune) {
+          const needle = initialComune.toLowerCase().trim();
+          target = list.find((s) =>
+            s.comune.toLowerCase().includes(needle) || needle.includes(s.comune.toLowerCase())
+          );
+        }
+
+        if (target) {
+          setSelectedSportello(target);
+          setHasPreselectedSportello(true);
         } else {
           // Se non selezionato in precedenza lo sportello, imposta come consigliato quello Campobasso (sede SIM)
           const cb = list.find((s) => s.id === 2 || s.comune.toLowerCase().includes('campobasso'));
@@ -210,29 +249,32 @@ export const BookingWizard: React.FC<BookingWizardProps> = ({
         console.error(err);
         setSportelli([]);
       });
-  }, [initialSportelloId]);
+  }, [initialSportelloId, initialComune]);
 
-  // Sportelli proposti in primo piano in Step 6
+  // Sportelli proposti in primo piano in Step 6 (se non preselezionato o se visualizzati tutti)
   const proposedSportelli = useMemo(() => {
     if (sportelli.length === 0) return [];
     if (userCoords) {
       return sportelli.slice(0, 3);
     }
-    // Senza geolocalizzazione: proponi Campobasso (sede SIM) come consigliato
+    // Se c'è uno sportello selezionato, mettilo come prima opzione
+    const current = selectedSportello ? sportelli.find((s) => s.id === selectedSportello.id) : null;
     const cb = sportelli.find((s) => s.id === 2 || s.comune.toLowerCase().includes('campobasso'));
     const isernia = sportelli.find((s) => s.id === 6 || s.comune.toLowerCase().includes('isernia'));
     const termoli = sportelli.find((s) => s.id === 10 || s.comune.toLowerCase().includes('termoli'));
-    const others = sportelli.filter((s) => s !== cb && s !== isernia && s !== termoli);
 
     const list: Sportello[] = [];
-    if (cb) list.push(cb);
-    if (isernia) list.push(isernia);
-    if (termoli) list.push(termoli);
+    if (current) list.push(current);
+    if (cb && !list.some((s) => s.id === cb.id)) list.push(cb);
+    if (isernia && !list.some((s) => s.id === isernia.id)) list.push(isernia);
+    if (termoli && !list.some((s) => s.id === termoli.id)) list.push(termoli);
+
+    const others = sportelli.filter((s) => !list.some((item) => item.id === s.id));
     while (list.length < 3 && others.length > 0) {
       list.push(others.shift()!);
     }
     return list;
-  }, [sportelli, userCoords]);
+  }, [sportelli, userCoords, selectedSportello]);
 
   // Handle Geolocation in S6
   const requestGeolocation = () => {
@@ -271,12 +313,12 @@ export const BookingWizard: React.FC<BookingWizardProps> = ({
     );
   };
 
-  // When reaching step 6, auto-request geolocation if consent was given
+  // When reaching step 6, auto-request geolocation only if no preselected sportello
   useEffect(() => {
-    if (step === 6 && geoConsent && !userCoords && !geoLoading) {
+    if (step === 6 && !hasPreselectedSportello && geoConsent && !userCoords && !geoLoading) {
       requestGeolocation();
     }
-  }, [step, geoConsent]);
+  }, [step, geoConsent, hasPreselectedSportello]);
 
   // Fetch available slots when sportello and date are chosen
   useEffect(() => {
@@ -388,6 +430,9 @@ export const BookingWizard: React.FC<BookingWizardProps> = ({
       };
 
       setCompletedAppointment(apptObj);
+      if (onComplete) {
+        onComplete(apptObj);
+      }
 
       if (data.emailSent || data.emailStatus?.sent) {
         setEmailStatus('success');
@@ -626,7 +671,7 @@ export const BookingWizard: React.FC<BookingWizardProps> = ({
               <div>
                 <p className="font-bold text-slate-900">Titolare del trattamento</p>
                 <p>
-                  Il titolare del trattamento è Sviluppo Italia Molise S.p.A., P.Iva e C.F.: 00852240704, con sede legale in Campobasso, alla via Nazario Sauro n. 1, tel. 0874 4011200, e-mail: info@sviluppoitaliamolise.it, PEC: sviluppoitaliamolise@legalmail.it, sito internet: https://www.sviluppoitaliamolise.com.
+                  Il titolare del trattamento è Sviluppo Italia Molise S.p.A., P.Iva e C.F.: 00852240704, con sede legale in Campobasso, alla via Nazario Sauro n. 1, tel. 0874 011011, e-mail: info@sviluppoitaliamolise.it, PEC: sviluppoitaliamolise@legalmail.it, sito internet: https://www.sviluppoitaliamolise.com.
                 </p>
               </div>
 
@@ -1313,170 +1358,326 @@ export const BookingWizard: React.FC<BookingWizardProps> = ({
             S6: SPORTELLO PIÙ VICINO (GEOLOCALIZZAZIONE O SCELTA LIBERA)
            ========================================================================= */}
         {step === 6 && (
-          <div className="space-y-6">
-            <div className="text-center max-w-xl mx-auto space-y-2">
-              <span className="text-xs font-bold text-sky-700 uppercase tracking-wider">
-                Geolocalizzazione e Proposta Sportello
-              </span>
-              <h2 className="text-2xl sm:text-3xl font-black text-slate-950 font-display">
-                Scegli lo Sportello
-              </h2>
-              <p className="text-slate-600 text-sm">
-                In base alla tua posizione ti proponiamo gli sportelli più vicini, ma puoi scegliere liberamente qualunque sede.
-              </p>
-            </div>
+          hasPreselectedSportello && !showAllSportelli && selectedSportello ? (
+            /* VISTA CON ESCLUSIVAMENTE LO SPORTELLO INIZIALMENTE PRENOTATO */
+            <div className="space-y-6">
+              <div className="text-center max-w-xl mx-auto space-y-2">
+                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-100 text-emerald-800 text-xs font-bold uppercase tracking-wider">
+                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                  <span>Sportello Preselezionato</span>
+                </span>
+                <h2 className="text-2xl sm:text-3xl font-black text-slate-950 font-display">
+                  La tua Sede di Prenotazione
+                </h2>
+                <p className="text-slate-600 text-sm">
+                  Hai scelto di prenotare il tuo appuntamento presso lo sportello di <strong>{getSportelloComune(selectedSportello)}</strong>.
+                </p>
+              </div>
 
-            {/* Top 3 Proposed Desks */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              {proposedSportelli.map((s, idx) => {
-                const isSelected = selectedSportello?.id === s.id;
-                const isCampobassoSim = s.id === 2 || s.comune.toLowerCase().includes('campobasso');
-                const isClosestByDistance = Boolean(userCoords && idx === 0 && s.distanzaKm !== undefined);
+              {/* Scheda Singola ed Esclusiva dello Sportello Scelto */}
+              <div className="max-w-2xl mx-auto bg-gradient-to-br from-white via-sky-50/20 to-white rounded-2xl border-2 border-sky-500 shadow-md p-6 sm:p-7 relative overflow-hidden">
+                <div className="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-sky-500 via-blue-600 to-indigo-600" />
 
-                let badgeText = `Opzione ${idx + 1}`;
-                let badgeClass = 'bg-slate-100 text-slate-700';
-
-                if (isClosestByDistance) {
-                  badgeText = 'Più vicino alla tua posizione';
-                  badgeClass = 'bg-emerald-100 text-emerald-800 font-bold';
-                } else if (isCampobassoSim) {
-                  badgeText = 'Consigliato (sede SIM)';
-                  badgeClass = 'bg-emerald-100 text-emerald-800 font-bold';
-                }
-
-                return (
-                  <div
-                    key={s.id}
-                    onClick={() => setSelectedSportello(s)}
-                    className={`cursor-pointer rounded-2xl p-5 border transition-all flex flex-col justify-between ${
-                      isSelected
-                        ? 'bg-sky-50/90 border-sky-500 shadow-md ring-2 ring-sky-300 ring-offset-1'
-                        : 'bg-white border-slate-200 hover:border-sky-300 shadow-2xs'
-                    }`}
+                <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
+                  <span className="inline-flex items-center gap-1.5 text-xs font-extrabold uppercase px-3 py-1 rounded-full bg-emerald-600 text-white shadow-xs">
+                    <Check className="w-3.5 h-3.5" />
+                    <span>Sede Confermata per l'Appuntamento</span>
+                  </span>
+                  <span
+                    className="text-[11px] font-bold px-2.5 py-0.5 rounded-full"
+                    style={{
+                      backgroundColor: AREE[getSportelloArea(selectedSportello)]?.soft || '#f0f9ff',
+                      color: AREE[getSportelloArea(selectedSportello)]?.col || '#0369a1'
+                    }}
                   >
-                    <div>
-                      <div className="flex items-center justify-between gap-2 mb-2">
-                        <span className={`text-[10px] font-extrabold uppercase px-2 py-0.5 rounded-full ${badgeClass}`}>
-                          {badgeText}
-                        </span>
-                        {s.distanzaKm !== undefined && (
-                          <span className="text-xs font-bold text-sky-700">
-                            ~{s.distanzaKm} km
-                          </span>
-                        )}
-                      </div>
+                    {AREE[getSportelloArea(selectedSportello)]?.nome || 'Regione Molise'}
+                  </span>
+                </div>
 
-                      <h3 className="text-sm font-bold text-slate-900 leading-snug">
-                        {getSportelloComune(s)}
-                      </h3>
-                      <p className="text-[11px] text-slate-500 line-clamp-1 mt-0.5">
-                        {s.indirizzo}
-                      </p>
-
-                      <div className="mt-3 text-xs space-y-1 text-slate-700">
-                        <div className="flex items-center gap-1.5 font-medium">
-                          <Clock className="w-3.5 h-3.5 text-sky-600" />
-                          <span>{s.giorni} ({s.orario})</span>
-                        </div>
-                        <div className="text-[11px] text-slate-500">
-                          Cadenza: <strong>{s.cadenza}</strong>
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="pt-4 border-t border-slate-100 mt-4 flex items-center justify-between text-xs">
-                      <span className={`font-bold ${isSelected ? 'text-sky-700' : 'text-slate-500'}`}>
-                        {isSelected ? '✓ Selezionato' : 'Clicca per scegliere'}
-                      </span>
-                      <ChevronRight className={`w-4 h-4 ${isSelected ? 'text-sky-600' : 'text-slate-400'}`} />
+                <div className="space-y-4">
+                  <div>
+                    <h3 className="text-xl sm:text-2xl font-black text-slate-950 font-display flex items-center gap-2">
+                      <Building2 className="w-6 h-6 text-sky-600 shrink-0" />
+                      <span>{getSportelloComune(selectedSportello)}</span>
+                    </h3>
+                    <div className="flex items-start gap-2 text-slate-600 text-sm mt-1.5">
+                      <MapPin className="w-4 h-4 text-sky-600 shrink-0 mt-0.5" />
+                      <span>{selectedSportello.indirizzo}</span>
                     </div>
                   </div>
-                );
-              })}
-            </div>
 
-            {/* Geolocation status and button */}
-            <div className="flex flex-wrap items-center justify-between gap-3 bg-white p-4 rounded-xl border border-slate-200 text-xs">
-              <div className="flex items-center gap-2">
-                <Navigation className="w-4 h-4 text-sky-600" />
-                <span>
-                  {userCoords
-                    ? 'Posizione rilevata con successo. Distanze calcolate in linea d\'aria (formula Haversine).'
-                    : geoError || 'Posizione non ancora rilevata.'}
-                </span>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-3 border-t border-slate-200/80">
+                    <div className="bg-white p-3.5 rounded-xl border border-slate-200/70 shadow-2xs space-y-1">
+                      <div className="flex items-center gap-1.5 text-xs font-bold text-sky-800 uppercase tracking-wide">
+                        <Clock className="w-3.5 h-3.5 text-sky-600" />
+                        <span>Orario di Ricevimento</span>
+                      </div>
+                      <div className="text-sm font-extrabold text-slate-900">
+                        {selectedSportello.giorni}
+                      </div>
+                      <div className="text-xs text-slate-600">
+                        Dalle ore <strong>{selectedSportello.orario}</strong>
+                      </div>
+                      <div className="text-[11px] text-slate-500 mt-1">
+                        Cadenza: <span className="font-semibold text-slate-700">{selectedSportello.cadenza}</span>
+                      </div>
+                    </div>
+
+                    <div className="bg-white p-3.5 rounded-xl border border-slate-200/70 shadow-2xs space-y-1">
+                      <div className="flex items-center gap-1.5 text-xs font-bold text-purple-800 uppercase tracking-wide">
+                        <ShieldCheck className="w-3.5 h-3.5 text-purple-600" />
+                        <span>Modalità Disponibili</span>
+                      </div>
+                      <div className="text-xs font-semibold text-slate-800 flex items-center gap-1.5">
+                        <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0" />
+                        <span>In presenza allo Sportello</span>
+                      </div>
+                      {selectedSportello.online_attivo !== 0 ? (
+                        <div className="text-xs font-semibold text-purple-900 flex items-center gap-1.5">
+                          <span className="w-2 h-2 rounded-full bg-purple-600 shrink-0" />
+                          <span>Videocall online (Jitsi / Meet)</span>
+                        </div>
+                      ) : (
+                        <div className="text-[11px] text-slate-400">
+                          (Sede abilitata a incontri in presenza)
+                        </div>
+                      )}
+                      <div className="text-[11px] text-slate-500 pt-0.5">
+                        Potrai scegliere la modalità al prossimo passo.
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="bg-sky-50/70 border border-sky-200/80 rounded-xl p-3 text-xs text-sky-900 flex items-center gap-2">
+                    <Sparkles className="w-4 h-4 text-sky-600 shrink-0" />
+                    <span>
+                      Al prossimo passo (Passo 7 di 8) potrai scegliere la <strong>data</strong> e l'<strong>orario</strong> preferito tra gli slot disponibili per questa sede.
+                    </span>
+                  </div>
+                </div>
+
+                {/* Opzione discreta per mostrare tutti gli sportelli */}
+                <div className="mt-5 pt-4 border-t border-slate-200/80 flex items-center justify-between flex-wrap gap-2 text-xs">
+                  <span className="text-slate-500">
+                    Vuoi scegliere una sede diversa?
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setShowAllSportelli(true)}
+                    className="font-bold text-sky-700 hover:text-sky-900 hover:underline cursor-pointer"
+                  >
+                    Mostra tutti gli sportelli del Molise →
+                  </button>
+                </div>
               </div>
-              <button
-                onClick={requestGeolocation}
-                disabled={geoLoading}
-                className="px-3 py-1.5 rounded-lg bg-sky-100 hover:bg-sky-200 text-sky-800 font-semibold transition-colors"
-              >
-                {geoLoading ? 'Rilevamento in corso...' : 'Ricalcola la mia posizione'}
-              </button>
+
+              {/* Actions */}
+              <div className="flex items-center justify-between pt-4 border-t border-slate-200 max-w-2xl mx-auto">
+                <button
+                  onClick={() => setStep(5)}
+                  className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-600 hover:text-slate-900 transition-colors flex items-center gap-1 cursor-pointer"
+                >
+                  <ChevronLeft className="w-4 h-4" />
+                  <span>Indietro</span>
+                </button>
+
+                <button
+                  onClick={() => {
+                    if (selectedSportello) {
+                      const upcoming = getUpcomingDatesForSportello(selectedSportello);
+                      if (upcoming.length > 0) setSelectedDate(upcoming[0]);
+                    }
+                    setStep(7);
+                  }}
+                  className="px-6 py-2.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-colors bg-sky-600 hover:bg-sky-700 text-white shadow-sm cursor-pointer"
+                >
+                  <span>Scegli Data e Ora ({getSportelloComune(selectedSportello)})</span>
+                  <ChevronRight className="w-4 h-4" />
+                </button>
+              </div>
             </div>
+          ) : (
+            /* VISTA CON ELENCO COMPLETO E PROPOSTE (PER CHI NON HA PRESELEZIONATO LO SPORTELLO O VUOLE CAMBIARLO) */
+            <div className="space-y-6">
+              {hasPreselectedSportello && (
+                <div className="flex flex-wrap items-center justify-between gap-2 bg-sky-50 border border-sky-200 p-3 rounded-xl text-xs">
+                  <span className="text-sky-900">
+                    Stai visualizzando l'elenco completo. Sportello attualmente selezionato: <strong>{getSportelloComune(selectedSportello)}</strong>
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setShowAllSportelli(false)}
+                    className="font-bold text-sky-700 hover:text-sky-900 underline ml-auto cursor-pointer"
+                  >
+                    ← Torna allo sportello preselezionato
+                  </button>
+                </div>
+              )}
 
-            {/* Interactive Map */}
-            <MoliseMap
-              sportelli={sportelli}
-              selectedSportello={selectedSportello as any}
-              selectedSportelloId={selectedSportello?.id}
-              userCoords={userCoords}
-              onSelectSportello={(s) => {
-                const found = sportelli.find((item) => item.id === s.id) || s;
-                setSelectedSportello(found);
-              }}
-            />
+              <div className="text-center max-w-xl mx-auto space-y-2">
+                <span className="text-xs font-bold text-sky-700 uppercase tracking-wider">
+                  Geolocalizzazione e Proposta Sportello
+                </span>
+                <h2 className="text-2xl sm:text-3xl font-black text-slate-950 font-display">
+                  Scegli lo Sportello
+                </h2>
+                <p className="text-slate-600 text-sm">
+                  In base alla tua posizione ti proponiamo gli sportelli più vicini, ma puoi scegliere liberamente qualunque sede.
+                </p>
+              </div>
 
-            {/* All Desks Fallback Selector */}
-            <div className="bg-white p-4 rounded-xl border border-slate-200">
-              <label className="block font-semibold text-slate-800 text-xs mb-1.5">
-                Oppure seleziona un altro sportello dall'elenco completo:
-              </label>
-              <select
-                value={selectedSportello?.id || ''}
-                onChange={(e) => {
-                  const s = sportelli.find((item) => item.id === parseInt(e.target.value, 10));
-                  if (s) setSelectedSportello(s);
-                }}
-                className="w-full px-3 py-2 border border-slate-300 rounded-lg text-xs bg-white focus:ring-2 focus:ring-sky-500"
-              >
-                {sportelli.map((s) => (
-                  <option key={s.id} value={s.id}>
-                    {getSportelloComune(s)} ({s.giorni}, {s.orario})
-                  </option>
-                ))}
-              </select>
-            </div>
+              {/* Top 3 Proposed Desks */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                {proposedSportelli.map((s, idx) => {
+                  const isSelected = selectedSportello?.id === s.id;
+                  const isCampobassoSim = s.id === 2 || s.comune.toLowerCase().includes('campobasso');
+                  const isClosestByDistance = Boolean(userCoords && idx === 0 && s.distanzaKm !== undefined);
 
-            {/* Actions */}
-            <div className="flex items-center justify-between pt-4 border-t border-slate-200">
-              <button
-                onClick={() => setStep(5)}
-                className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-600 hover:text-slate-900 transition-colors flex items-center gap-1"
-              >
-                <ChevronLeft className="w-4 h-4" />
-                <span>Indietro</span>
-              </button>
+                  let badgeText = `Opzione ${idx + 1}`;
+                  let badgeClass = 'bg-slate-100 text-slate-700';
 
-              <button
-                disabled={!selectedSportello}
-                onClick={() => {
-                  if (selectedSportello) {
-                    const upcoming = getUpcomingDatesForSportello(selectedSportello);
-                    if (upcoming.length > 0) setSelectedDate(upcoming[0]);
+                  if (isClosestByDistance) {
+                    badgeText = 'Più vicino alla tua posizione';
+                    badgeClass = 'bg-emerald-100 text-emerald-800 font-bold';
+                  } else if (isCampobassoSim) {
+                    badgeText = 'Consigliato (sede SIM)';
+                    badgeClass = 'bg-emerald-100 text-emerald-800 font-bold';
                   }
-                  setStep(7);
+
+                  return (
+                    <div
+                      key={s.id}
+                      onClick={() => setSelectedSportello(s)}
+                      className={`cursor-pointer rounded-2xl p-5 border transition-all flex flex-col justify-between ${
+                        isSelected
+                          ? 'bg-sky-50/90 border-sky-500 shadow-md ring-2 ring-sky-300 ring-offset-1'
+                          : 'bg-white border-slate-200 hover:border-sky-300 shadow-2xs'
+                      }`}
+                    >
+                      <div>
+                        <div className="flex items-center justify-between gap-2 mb-2">
+                          <span className={`text-[10px] font-extrabold uppercase px-2 py-0.5 rounded-full ${badgeClass}`}>
+                            {badgeText}
+                          </span>
+                          {s.distanzaKm !== undefined && (
+                            <span className="text-xs font-bold text-sky-700">
+                              ~{s.distanzaKm} km
+                            </span>
+                          )}
+                        </div>
+
+                        <h3 className="text-sm font-bold text-slate-900 leading-snug">
+                          {getSportelloComune(s)}
+                        </h3>
+                        <p className="text-[11px] text-slate-500 line-clamp-1 mt-0.5">
+                          {s.indirizzo}
+                        </p>
+
+                        <div className="mt-3 text-xs space-y-1 text-slate-700">
+                          <div className="flex items-center gap-1.5 font-medium">
+                            <Clock className="w-3.5 h-3.5 text-sky-600" />
+                            <span>{s.giorni} ({s.orario})</span>
+                          </div>
+                          <div className="text-[11px] text-slate-500">
+                            Cadenza: <strong>{s.cadenza}</strong>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="pt-4 border-t border-slate-100 mt-4 flex items-center justify-between text-xs">
+                        <span className={`font-bold ${isSelected ? 'text-sky-700' : 'text-slate-500'}`}>
+                          {isSelected ? '✓ Selezionato' : 'Clicca per scegliere'}
+                        </span>
+                        <ChevronRight className={`w-4 h-4 ${isSelected ? 'text-sky-600' : 'text-slate-400'}`} />
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* Geolocation status and button */}
+              <div className="flex flex-wrap items-center justify-between gap-3 bg-white p-4 rounded-xl border border-slate-200 text-xs">
+                <div className="flex items-center gap-2">
+                  <Navigation className="w-4 h-4 text-sky-600" />
+                  <span>
+                    {userCoords
+                      ? 'Posizione rilevata con successo. Distanze calcolate in linea d\'aria (formula Haversine).'
+                      : geoError || 'Posizione non ancora rilevata.'}
+                  </span>
+                </div>
+                <button
+                  onClick={requestGeolocation}
+                  disabled={geoLoading}
+                  className="px-3 py-1.5 rounded-lg bg-sky-100 hover:bg-sky-200 text-sky-800 font-semibold transition-colors"
+                >
+                  {geoLoading ? 'Rilevamento in corso...' : 'Ricalcola la mia posizione'}
+                </button>
+              </div>
+
+              {/* Interactive Map */}
+              <MoliseMap
+                sportelli={sportelli}
+                selectedSportello={selectedSportello as any}
+                selectedSportelloId={selectedSportello?.id}
+                userCoords={userCoords}
+                onSelectSportello={(s) => {
+                  const found = sportelli.find((item) => item.id === s.id) || s;
+                  setSelectedSportello(found);
                 }}
-                className={`px-6 py-2.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-colors ${
-                  selectedSportello
-                    ? 'bg-sky-600 hover:bg-sky-700 text-white shadow-sm'
-                    : 'bg-slate-200 text-slate-400 cursor-not-allowed'
-                }`}
-              >
-                <span>Scegli Data e Ora</span>
-                <ChevronRight className="w-4 h-4" />
-              </button>
+              />
+
+              {/* All Desks Fallback Selector */}
+              <div className="bg-white p-4 rounded-xl border border-slate-200">
+                <label className="block font-semibold text-slate-800 text-xs mb-1.5">
+                  Oppure seleziona un altro sportello dall'elenco completo:
+                </label>
+                <select
+                  value={selectedSportello?.id || ''}
+                  onChange={(e) => {
+                    const s = sportelli.find((item) => item.id === parseInt(e.target.value, 10));
+                    if (s) setSelectedSportello(s);
+                  }}
+                  className="w-full px-3 py-2 border border-slate-300 rounded-lg text-xs bg-white focus:ring-2 focus:ring-sky-500"
+                >
+                  {sportelli.map((s) => (
+                    <option key={s.id} value={s.id}>
+                      {getSportelloComune(s)} ({s.giorni}, {s.orario})
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Actions */}
+              <div className="flex items-center justify-between pt-4 border-t border-slate-200">
+                <button
+                  onClick={() => setStep(5)}
+                  className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-600 hover:text-slate-900 transition-colors flex items-center gap-1"
+                >
+                  <ChevronLeft className="w-4 h-4" />
+                  <span>Indietro</span>
+                </button>
+
+                <button
+                  disabled={!selectedSportello}
+                  onClick={() => {
+                    if (selectedSportello) {
+                      const upcoming = getUpcomingDatesForSportello(selectedSportello);
+                      if (upcoming.length > 0) setSelectedDate(upcoming[0]);
+                    }
+                    setStep(7);
+                  }}
+                  className={`px-6 py-2.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-colors ${
+                    selectedSportello
+                      ? 'bg-sky-600 hover:bg-sky-700 text-white shadow-sm'
+                      : 'bg-slate-200 text-slate-400 cursor-not-allowed'
+                  }`}
+                >
+                  <span>Scegli Data e Ora</span>
+                  <ChevronRight className="w-4 h-4" />
+                </button>
+              </div>
             </div>
-          </div>
+          )
         )}
 
         {/* =========================================================================

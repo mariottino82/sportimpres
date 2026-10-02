@@ -303,7 +303,7 @@ export const LookupModal: React.FC<LookupModalProps> = ({ isOpen, onClose }) => 
                 comune: appointment.sportello_comune || 'Campobasso',
                 indirizzo: appointment.sportello_indirizzo || 'Via Nazario Sauro 1',
                 telefono: appointment.sportello_telefono || '0874 011011',
-                email: appointment.sportello_email || 'sportelloimprese@sviluppoitaliamolise.it',
+                email: appointment.sportello_email || 'info@sviluppoitaliamolise.eu',
                 giorni: 'Lunedì-Venerdì',
                 orario: '09:00 - 13:00',
                 attivo: 1,
