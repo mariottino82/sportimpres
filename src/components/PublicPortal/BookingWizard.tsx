@@ -671,7 +671,7 @@ export const BookingWizard: React.FC<BookingWizardProps> = ({
               <div>
                 <p className="font-bold text-slate-900">Titolare del trattamento</p>
                 <p>
-                  Il titolare del trattamento è Sviluppo Italia Molise S.p.A., P.Iva e C.F.: 00852240704, con sede legale in Campobasso, alla via Nazario Sauro n. 1, tel. 0874 011011, e-mail: info@sviluppoitaliamolise.it, PEC: sviluppoitaliamolise@legalmail.it, sito internet: https://www.sviluppoitaliamolise.com.
+                  Il titolare del trattamento è Sviluppo Italia Molise S.p.A., P.Iva e C.F.: 00852240704, con sede legale in Campobasso, alla via Nazario Sauro n. 1, tel. 0874 011011, e-mail: info@sviluppoitaliamolise.eu, PEC: sviluppoitaliamolise@legalmail.it, sito internet: https://www.sviluppoitaliamolise.com.
                 </p>
               </div>
 
