@@ -2206,7 +2206,7 @@ export const BookingWizard: React.FC<BookingWizardProps> = ({
                   <strong className="text-slate-900 text-sm">{confirmedSportello.nome}</strong>
                   <p className="text-slate-600 mt-0.5">{confirmedSportello.indirizzo}</p>
                   <p className="text-slate-500 mt-0.5">
-                    Tel. <strong>{confirmedSportello.telefono}</strong> • Email: <strong>{confirmedSportello.email}</strong>
+                    Tel. <strong>{confirmedSportello.telefono}</strong> • Email: <strong>info@sviluppoitaliamolise.eu</strong>
                   </p>
                   <a
                     href={`https://maps.google.com/?q=${confirmedSportello.lat},${confirmedSportello.lng}`}
