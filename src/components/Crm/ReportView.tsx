@@ -130,7 +130,7 @@ export const ReportView: React.FC<ReportViewProps> = ({ role }) => {
         </div>
 
         {/* Summary Indicators Grid */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">
+        <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 sm:gap-4">
           <div className="p-3 sm:p-4 rounded-xl bg-slate-50 border border-slate-200">
             <span className="text-[11px] font-bold text-slate-500 uppercase block mb-1">Target Annuale</span>
             <div className="text-xl sm:text-2xl font-black text-slate-900 font-mono">250</div>
@@ -153,6 +153,12 @@ export const ReportView: React.FC<ReportViewProps> = ({ role }) => {
             <span className="text-[11px] font-bold text-slate-500 uppercase block mb-1">Follow-up Positivo</span>
             <div className="text-xl sm:text-2xl font-black text-indigo-700 font-mono">{totali.followUpRatePercent}%</div>
             <span className="text-[10px] text-indigo-600 font-semibold">Target contrattuale ≥ 10%</span>
+          </div>
+
+          <div className="p-3 sm:p-4 rounded-xl bg-teal-50/60 border border-teal-200">
+            <span className="text-[11px] font-bold text-teal-800 uppercase block mb-1">Visite Piattaforma</span>
+            <div className="text-xl sm:text-2xl font-black text-teal-900 font-mono">{(data.visitatori?.visiteTotali || 0).toLocaleString('it-IT')}</div>
+            <span className="text-[10px] text-teal-700 font-semibold">{data.visitatori?.visitatoriUniciTotali || 0} visitatori unici</span>
           </div>
         </div>
 

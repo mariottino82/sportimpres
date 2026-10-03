@@ -12,7 +12,10 @@ import {
   Building2,
   User,
   ChevronRight,
-  ArrowUpRight
+  ArrowUpRight,
+  Activity,
+  Eye,
+  Globe
 } from 'lucide-react';
 
 interface CruscottoViewProps {
@@ -20,13 +23,15 @@ interface CruscottoViewProps {
   onNavigateToAgenda: () => void;
   onNavigateToUser: (userId: number) => void;
   onNavigateToBandi?: () => void;
+  onNavigateToVisitatori?: () => void;
 }
 
 export const CruscottoView: React.FC<CruscottoViewProps> = ({
   role,
   onNavigateToAgenda,
   onNavigateToUser,
-  onNavigateToBandi
+  onNavigateToBandi,
+  onNavigateToVisitatori
 }) => {
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
@@ -101,7 +106,7 @@ export const CruscottoView: React.FC<CruscottoViewProps> = ({
       </div>
 
       {/* KPI Metric Cards Grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
         
         {/* Card 1: Utenti Totali */}
         <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-2xs">
@@ -176,6 +181,33 @@ export const CruscottoView: React.FC<CruscottoViewProps> = ({
           </div>
           <div className="text-xs text-slate-500 mt-2 flex items-center gap-1">
             <span className="text-emerald-700 font-bold">Target ≥ 10%: Soddisfatto</span>
+          </div>
+        </div>
+
+        {/* Card 5: Visitatori & Traffico Web Piattaforma */}
+        <div
+          onClick={onNavigateToVisitatori}
+          className="bg-white p-5 rounded-2xl border border-slate-200 shadow-2xs hover:border-sky-400 hover:shadow-md transition-all cursor-pointer group"
+          title="Clicca per visualizzare le statistiche dettagliate sui visitatori"
+        >
+          <div className="flex items-center justify-between mb-3">
+            <span className="text-xs font-bold uppercase text-slate-500 group-hover:text-sky-700 transition-colors">
+              Accessi Piattaforma
+            </span>
+            <div className="w-8 h-8 rounded-lg bg-teal-100 text-teal-700 group-hover:bg-teal-600 group-hover:text-white transition-colors flex items-center justify-center">
+              <Eye className="w-4 h-4" />
+            </div>
+          </div>
+          <div className="text-3xl font-black text-slate-950 font-mono">
+            {(data.visitatori?.visiteTotali || 0).toLocaleString('it-IT')}
+          </div>
+          <div className="flex items-center justify-between mt-2 text-xs text-slate-600">
+            <span className="text-teal-700 font-bold">
+              {data.visitatori?.visitatoriUniciOggi || 0} unici oggi
+            </span>
+            <span className="text-sky-700 font-bold group-hover:translate-x-0.5 transition-transform flex items-center gap-0.5">
+              Dettaglio →
+            </span>
           </div>
         </div>
 
@@ -327,6 +359,32 @@ export const CruscottoView: React.FC<CruscottoViewProps> = ({
           </div>
         </div>
 
+      </div>
+
+      {/* Platform Visitor Activity Banner */}
+      <div className="bg-gradient-to-r from-slate-900 via-sky-950 to-slate-900 text-white p-5 sm:p-6 rounded-2xl border border-slate-800 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div className="space-y-1">
+          <div className="flex items-center gap-2">
+            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+            <span className="text-xs font-bold text-sky-400 uppercase tracking-wider">
+              Monitoraggio Accessi e Traffico Piattaforma in Tempo Reale
+            </span>
+          </div>
+          <h3 className="text-lg font-black font-display">
+            {(data.visitatori?.visiteTotali || 0).toLocaleString('it-IT')} visite registrate sul portale pubblico
+          </h3>
+          <p className="text-xs text-slate-300">
+            Oggi sono stati rilevati <strong className="text-white">{data.visitatori?.visitatoriUniciOggi || 0} visitatori unici</strong> ({data.visitatori?.percentualeMobile || 50}% da smartphone e tablet).
+          </p>
+        </div>
+
+        <button
+          onClick={onNavigateToVisitatori}
+          className="self-start md:self-center px-4 py-2.5 rounded-xl bg-sky-600 hover:bg-sky-500 text-white text-xs font-bold transition-all shadow-md flex items-center gap-1.5 cursor-pointer shrink-0"
+        >
+          <Activity className="w-4 h-4" />
+          <span>Apri Modulo Statistiche Visitatori →</span>
+        </button>
       </div>
 
     </div>

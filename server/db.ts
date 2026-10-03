@@ -1,6 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 import Database from 'better-sqlite3';
+import { initVisitorTables } from './visitorTracker.js';
 
 export type DbInstance = Database.Database;
 
@@ -264,9 +265,10 @@ function initTables(db: Database.Database) {
   seedInitialData(db);
   seedEventi(db);
   syncSmtpConfig(db);
+  initVisitorTables(db);
 
-  // Rimozione controllata dei dati fittizi di prova in produzione
-  if (process.env.NODE_ENV === 'production' || process.env.PURGE_SAMPLE_DATA === 'true') {
+  // Rimozione controllata dei dati di test SOLO se esplicitamente richiesto da variabile d'ambiente
+  if (process.env.PURGE_SAMPLE_DATA === 'true') {
     purgeSampleTestData(db);
   }
 }

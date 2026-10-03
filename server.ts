@@ -16,6 +16,7 @@ import crypto from 'crypto';
 import sharp from 'sharp';
 import { createServer as createViteServer } from 'vite';
 import { getDb, queryAll, queryOne, run, purgeSampleTestData } from './server/db.js';
+import { recordVisit, getVisitorAnalytics } from './server/visitorTracker.js';
 import { matchBandiForProfile } from './server/gemini.js';
 import {
   sendAppointmentConfirmationEmail,
@@ -2536,7 +2537,7 @@ app.post('/api/qrcodes/:codice/scan', (req, res) => {
 // DASHBOARD CRUSCOTTO & STATISTICHE
 // ----------------------------------------------------
 
-app.get('/api/crm/cruscotto', (req, res) => {
+app.get('/api/crm/cruscotto', async (req, res) => {
   try {
     // Total users
     const totalUsers = queryOne('SELECT COUNT(*) as count FROM utenti')?.count || 0;
@@ -2636,8 +2637,81 @@ app.get('/api/crm/cruscotto', (req, res) => {
       ris3Stats,
       canaliStats,
       todayTomorrowAppts,
-      todayAppts: todayTomorrowAppts
+      todayAppts: todayTomorrowAppts,
+      visitatori: (await getDb()) ? getVisitorAnalytics(await getDb())?.totali : null
     });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ----------------------------------------------------
+// MONITORAGGIO VISITATORI & ACCESSI PIATTAFORMA
+// ----------------------------------------------------
+
+// Endpoint per il tracciamento anonimo degli accessi dei visitatori
+app.post('/api/track-visit', async (req, res) => {
+  try {
+    const db = await getDb();
+    const forwarded = req.headers['x-forwarded-for'];
+    const ip = (typeof forwarded === 'string' ? forwarded.split(',')[0].trim() : req.socket.remoteAddress) || '127.0.0.1';
+    const userAgent = req.headers['user-agent'] || '';
+    const { path: reqPath, referrer, visitorId } = req.body || {};
+
+    const result = recordVisit(db, {
+      ip,
+      userAgent,
+      path: reqPath,
+      referrer,
+      visitorId
+    });
+
+    res.json({ success: true, ...result });
+  } catch (err: any) {
+    // Non bloccare mai il client in caso di errore di tracciamento
+    res.json({ success: false, error: err.message });
+  }
+});
+
+// Endpoint Area Riservata: Statistiche dettagliate visitatori
+app.get('/api/crm/visitatori', async (req, res) => {
+  try {
+    const db = await getDb();
+    const stats = getVisitorAnalytics(db);
+    res.json(stats);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Endpoint Area Riservata: Esportazione log accessi in formato CSV
+app.get('/api/crm/visitatori/export-csv', async (req, res) => {
+  try {
+    const db = await getDb();
+    const rows = db.prepare(`
+      SELECT data_ora, pagina, device, browser, os, canale, referente
+      FROM visitatori_log
+      ORDER BY id DESC
+      LIMIT 1000
+    `).all() as any[];
+
+    const headers = ['Data_Ora', 'Pagina', 'Dispositivo', 'Browser', 'Sistema_Operativo', 'Canale', 'Referente'];
+    const csvLines = [
+      headers.join(';'),
+      ...rows.map(r => [
+        `"${r.data_ora || ''}"`,
+        `"${r.pagina || ''}"`,
+        `"${r.device || ''}"`,
+        `"${r.browser || ''}"`,
+        `"${r.os || ''}"`,
+        `"${r.canale || ''}"`,
+        `"${(r.referente || '').replace(/"/g, '""')}"`
+      ].join(';'))
+    ];
+
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader('Content-Disposition', `attachment; filename="Report_Accessi_Visitatori_${new Date().toISOString().substring(0, 10)}.csv"`);
+    res.send('\uFEFF' + csvLines.join('\r\n')); // BOM UTF-8 per corretta apertura in Excel
   } catch (err: any) {
     res.status(500).json({ error: err.message });
   }

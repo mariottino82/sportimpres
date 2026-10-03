@@ -11,6 +11,7 @@ import { QrCodeWebTvView } from './QrCodeWebTvView';
 import { AccessiRuoliView } from './AccessiRuoliView';
 import { SportelliManagerView } from './SportelliManagerView';
 import { EventiManager } from './EventiManager';
+import { VisitatoriView } from './VisitatoriView';
 
 interface AdminDashboardProps {
   onExitCrm: () => void;
@@ -83,6 +84,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
             onNavigateToAgenda={() => setCurrentTab('agenda')}
             onNavigateToUser={handleOpenUser360}
             onNavigateToBandi={() => setCurrentTab('bandi')}
+            onNavigateToVisitatori={() => setCurrentTab('visitatori')}
           />
         )}
 
@@ -117,6 +119,12 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
         {currentTab === 'report' && (
           <ReportView
+            role={effectiveRole}
+          />
+        )}
+
+        {currentTab === 'visitatori' && (
+          <VisitatoriView
             role={effectiveRole}
           />
         )}

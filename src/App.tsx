@@ -2,6 +2,7 @@ import React, { useState, useEffect, Suspense, lazy } from 'react';
 import { InstitutionalBanner, InstitutionalLogosStrip, Logo } from './components/Logo';
 import { LandingView } from './components/PublicPortal/LandingView';
 import { WebTvVideo, CrmOperator, UserType } from './types';
+import { trackPlatformVisit } from './utils/visitorTracker';
 import {
   Calendar,
   Lock,
@@ -83,6 +84,22 @@ export default function App() {
       setMode('booking');
     }
   }, []);
+
+  // Tracciamento anonimo visitatori portale pubblico (GDPR compliant, esclude sessioni CRM)
+  useEffect(() => {
+    if (mode !== 'admin') {
+      const pagePath = mode === 'booking' ? '/prenota' : (window.location.pathname + window.location.hash || '/');
+      trackPlatformVisit(pagePath);
+    }
+
+    const handleHashChange = () => {
+      if (mode !== 'admin') {
+        trackPlatformVisit(window.location.pathname + window.location.hash);
+      }
+    };
+    window.addEventListener('hashchange', handleHashChange);
+    return () => window.removeEventListener('hashchange', handleHashChange);
+  }, [mode]);
 
   const handleStartBooking = (
     sportelloOrParams?: string | number | { userType?: 'IMPRESA' | 'ASPIRANTE'; initialSportelloId?: number | string; source?: string; grantTitle?: string },
