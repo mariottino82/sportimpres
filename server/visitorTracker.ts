@@ -339,12 +339,12 @@ export function getVisitorAnalytics(db: Database.Database): any {
       LIMIT 8
     `).all() as any[];
 
-    // Ultimi 25 accessi recenti anonimizzati per monitoraggio in tempo reale
+    // Ultimi accessi recenti anonimizzati per monitoraggio in tempo reale (supporta paginazione client)
     const ultimiAccessi = db.prepare(`
       SELECT id, data_ora, data, ora, device, browser, os, pagina, canale
       FROM visitatori_log
       ORDER BY id DESC
-      LIMIT 25
+      LIMIT 500
     `).all() as any[];
 
     const visiteTot = Number(totals?.visite_totali) || 0;

@@ -10,7 +10,9 @@ import {
   Layers,
   Clock,
   Compass,
-  Tablet
+  Tablet,
+  ChevronLeft,
+  ChevronRight
 } from 'lucide-react';
 import { CrmRole } from '../../types';
 
@@ -21,6 +23,8 @@ interface VisitatoriViewProps {
 export const VisitatoriView: React.FC<VisitatoriViewProps> = () => {
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [currentPage, setCurrentPage] = useState(1);
+  const PAGE_SIZE = 15;
 
   const fetchStats = async () => {
     try {
@@ -59,6 +63,29 @@ export const VisitatoriView: React.FC<VisitatoriViewProps> = () => {
 
   // Calcola massimo per la scala del grafico a barre
   const maxVisitsTrend = Math.max(...(trend.map((t: any) => t.visite) || [1]), 10);
+
+  // Calcoli paginazione per il Registro Ultimi Accessi (15 righe per pagina)
+  const totalItems = ultimiAccessi.length;
+  const totalPages = Math.max(1, Math.ceil(totalItems / PAGE_SIZE));
+  const safeCurrentPage = Math.min(Math.max(1, currentPage), totalPages);
+  const startIndex = (safeCurrentPage - 1) * PAGE_SIZE;
+  const endIndex = Math.min(startIndex + PAGE_SIZE, totalItems);
+  const paginatedAccessi = ultimiAccessi.slice(startIndex, endIndex);
+
+  const getPageNumbers = (current: number, total: number) => {
+    if (total <= 7) {
+      return Array.from({ length: total }, (_, i) => i + 1);
+    }
+    if (current <= 4) {
+      return [1, 2, 3, 4, 5, '...', total];
+    }
+    if (current >= total - 3) {
+      return [1, '...', total - 4, total - 3, total - 2, total - 1, total];
+    }
+    return [1, '...', current - 1, current, current + 1, '...', total];
+  };
+
+  const pageNumbers = getPageNumbers(safeCurrentPage, totalPages);
 
   return (
     <div className="space-y-6">
@@ -323,10 +350,12 @@ export const VisitatoriView: React.FC<VisitatoriViewProps> = () => {
               <Clock className="w-4 h-4 text-sky-600" />
               <span>Registro Ultimi Accessi in Tempo Reale</span>
             </h3>
-            <p className="text-xs text-slate-500">Elenco degli ultimi accessi anonimizzati registrati dalla piattaforma</p>
+            <p className="text-xs text-slate-500">Elenco degli ultimi accessi anonimizzati registrati dalla piattaforma (15 per pagina)</p>
           </div>
-          <span className="text-xs font-semibold text-slate-500 bg-slate-100 px-3 py-1 rounded-full">
-            Ultimi {ultimiAccessi.length} accessi
+          <span className="text-xs font-semibold text-slate-600 bg-slate-100 px-3 py-1 rounded-full">
+            {totalItems === 0
+              ? '0 accessi'
+              : `${totalItems} accessi${totalPages > 1 ? ` • Pagina ${safeCurrentPage} di ${totalPages}` : ''}`}
           </span>
         </div>
 
@@ -342,14 +371,14 @@ export const VisitatoriView: React.FC<VisitatoriViewProps> = () => {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 font-medium text-slate-700">
-              {ultimiAccessi.length === 0 ? (
+              {paginatedAccessi.length === 0 ? (
                 <tr>
                   <td colSpan={5} className="py-8 text-center text-slate-400">
                     Nessun accesso ancora registrato.
                   </td>
                 </tr>
               ) : (
-                ultimiAccessi.map((row: any) => (
+                paginatedAccessi.map((row: any) => (
                   <tr key={row.id} className="hover:bg-slate-50/80 transition-colors">
                     <td className="py-3 px-4 whitespace-nowrap font-mono text-[11px] text-slate-900 font-bold">
                       {row.data_ora}
@@ -387,6 +416,57 @@ export const VisitatoriView: React.FC<VisitatoriViewProps> = () => {
             </tbody>
           </table>
         </div>
+
+        {/* Paginazione (15 righe per pagina) */}
+        {totalItems > PAGE_SIZE && (
+          <div className="p-4 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-slate-600 bg-slate-50/50">
+            <div className="text-slate-500 font-medium">
+              Accessi da <strong className="text-slate-900">{startIndex + 1}</strong> a <strong className="text-slate-900">{endIndex}</strong> di <strong className="text-slate-900">{totalItems}</strong> complessivi
+            </div>
+
+            <div className="flex items-center gap-1.5">
+              <button
+                onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                disabled={safeCurrentPage === 1}
+                className="px-2.5 py-1.5 rounded-lg border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors font-medium flex items-center gap-1 shadow-2xs cursor-pointer"
+                title="Pagina precedente"
+              >
+                <ChevronLeft className="w-3.5 h-3.5" />
+                <span className="hidden sm:inline">Precedente</span>
+              </button>
+
+              <div className="flex items-center gap-1">
+                {pageNumbers.map((p, idx) => (
+                  p === '...' ? (
+                    <span key={`dots-${idx}`} className="px-2 py-1 text-slate-400 font-bold">...</span>
+                  ) : (
+                    <button
+                      key={p}
+                      onClick={() => setCurrentPage(Number(p))}
+                      className={`w-7 h-7 sm:w-8 sm:h-8 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                        safeCurrentPage === p
+                          ? 'bg-sky-600 text-white shadow-xs'
+                          : 'bg-white border border-slate-200 text-slate-700 hover:bg-slate-100'
+                      }`}
+                    >
+                      {p}
+                    </button>
+                  )
+                ))}
+              </div>
+
+              <button
+                onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                disabled={safeCurrentPage === totalPages}
+                className="px-2.5 py-1.5 rounded-lg border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors font-medium flex items-center gap-1 shadow-2xs cursor-pointer"
+                title="Pagina successiva"
+              >
+                <span className="hidden sm:inline">Successiva</span>
+                <ChevronRight className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          </div>
+        )}
       </div>
 
     </div>
