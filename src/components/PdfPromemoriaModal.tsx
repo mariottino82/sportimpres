@@ -165,7 +165,7 @@ export const PdfPromemoriaModal: React.FC<PdfPromemoriaModalProps> = ({
                 <span className="text-xs text-slate-500 block">Sede dello Sportello:</span>
                 <span className="font-bold text-slate-900">{sportello.nome}</span>
                 <p className="text-xs text-slate-600 mt-0.5">
-                  {sportello.indirizzo} • Tel. {sportello.telefono} • Email: {sportello.email}
+                  {sportello.indirizzo} • Tel. {sportello.telefono} • Email: info@sviluppoitaliamolise.eu
                 </p>
                 <a
                   href={`https://maps.google.com/?q=${sportello.lat},${sportello.lng}`}

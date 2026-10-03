@@ -1540,8 +1540,7 @@ export const BookingWizard: React.FC<BookingWizardProps> = ({
                     badgeText = 'Più vicino alla tua posizione';
                     badgeClass = 'bg-emerald-100 text-emerald-800 font-bold';
                   } else if (isCampobassoSim) {
-                    badgeText = 'Consigliato (sede SIM)';
-                    badgeClass = 'bg-emerald-100 text-emerald-800 font-bold';
+                   
                   }
 
                   return (
