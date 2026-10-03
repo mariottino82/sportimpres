@@ -54,7 +54,7 @@ export const CrmNavbar: React.FC<CrmNavbarProps> = ({
   const navItems = [
     { id: 'cruscotto', label: 'Cruscotto', icon: LayoutDashboard },
     { id: 'agenda', label: 'Agenda', icon: Calendar },
-    { id: 'utenti', label: 'Anagrafica & 360°', icon: Users },
+    { id: 'utenti', label: 'Anagrafica&360°', icon: Users },
     { id: 'interazioni', label: 'Interazioni', icon: MessageSquare },
     { id: 'bandi', label: 'Bandi', icon: Award },
     { id: 'eventi', label: 'News', icon: Newspaper },

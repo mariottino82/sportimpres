@@ -69,75 +69,32 @@ export function initVisitorTables(db: Database.Database): void {
       CREATE INDEX IF NOT EXISTS idx_visitatori_log_data ON visitatori_log(data);
       CREATE INDEX IF NOT EXISTS idx_visitatori_log_hash_data ON visitatori_log(visitatore_hash, data);
     `);
-
-    // Inizializza storico degli ultimi 14 giorni se la tabella giornaliera è nuova
-    seedHistoricalStatsIfEmpty(db);
   } catch (err: any) {
     console.error('[VisitorTracker] Errore inizializzazione tabelle visitatori:', err.message);
   }
 }
 
 /**
- * Se le statistiche sono vuote (prima installazione o deploy fresco),
- * popola con dati storici coerenti con il lancio della piattaforma
+ * Azzera completamente tutte le statistiche e il registro accessi dei visitatori
  */
-function seedHistoricalStatsIfEmpty(db: Database.Database): void {
+export function resetVisitorStats(db: Database.Database): { success: boolean; message: string } {
   try {
-    const check = db.prepare('SELECT COUNT(*) as count FROM visitatori_giornalieri').get() as { count: number } | undefined;
-    if (check && check.count > 0) return;
-
-    // Se esiste un backup JSON su disco, ripristinalo
+    db.exec(`
+      DELETE FROM visitatori_log;
+      DELETE FROM visitatori_giornalieri;
+    `);
     if (fs.existsSync(BACKUP_FILE)) {
       try {
-        const backupData: DailyStats[] = JSON.parse(fs.readFileSync(BACKUP_FILE, 'utf-8'));
-        if (Array.isArray(backupData) && backupData.length > 0) {
-          const insertStmt = db.prepare(`
-            INSERT OR REPLACE INTO visitatori_giornalieri 
-            (data, visite_totali, visitatori_unici, visite_mobile, visite_desktop, pagine_viste, aggiornato_il)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
-          `);
-          for (const item of backupData) {
-            insertStmt.run(
-              item.data,
-              item.visite_totali,
-              item.visitatori_unici,
-              item.visite_mobile,
-              item.visite_desktop,
-              item.pagine_viste,
-              item.aggiornato_il
-            );
-          }
-          console.log('[VisitorTracker] Storico visitatori ripristinato dal file di backup JSON');
-          return;
-        }
+        fs.unlinkSync(BACKUP_FILE);
       } catch (e) {
-        console.warn('[VisitorTracker] Impossibile leggere backup JSON:', e);
+        // ignore
       }
     }
-
-    // Storico iniziale realistico degli ultimi 14 giorni per mostrare subito metriche complete
-    const insertStmt = db.prepare(`
-      INSERT OR REPLACE INTO visitatori_giornalieri 
-      (data, visite_totali, visitatori_unici, visite_mobile, visite_desktop, pagine_viste, aggiornato_il)
-      VALUES (?, ?, ?, ?, ?, ?, ?)
-    `);
-
-    const now = new Date();
-    for (let i = 14; i >= 0; i--) {
-      const d = new Date(now.getTime() - i * 24 * 60 * 60 * 1000);
-      const dateStr = d.toISOString().substring(0, 10);
-
-      // Statistiche realistiche proporzionate
-      const baseVisits = 45 + Math.floor(Math.sin(i * 1.5) * 15) + (i === 0 ? 12 : (i < 3 ? 18 : 0));
-      const unici = Math.round(baseVisits * 0.72);
-      const mobile = Math.round(baseVisits * 0.58);
-      const desktop = baseVisits - mobile;
-      const pagine = Math.round(baseVisits * 2.4);
-
-      insertStmt.run(dateStr, baseVisits, unici, mobile, desktop, pagine, new Date().toISOString());
-    }
+    console.log('[VisitorTracker] Statistiche visitatori azzerate con successo.');
+    return { success: true, message: 'Statistiche visitatori azzerate con successo' };
   } catch (err: any) {
-    console.warn('[VisitorTracker] Warning seeding storico visitatori:', err.message);
+    console.error('[VisitorTracker] Errore azzeramento statistiche:', err.message);
+    return { success: false, message: err.message };
   }
 }
 
@@ -409,28 +366,10 @@ export function getVisitorAnalytics(db: Database.Database): any {
         pagineVisteTotali: Number(totals?.pagine_viste) || 0
       },
       trend: trend.reverse(), // Da meno recente a più recente per il grafico
-      dispositivi: deviceStats.length > 0 ? deviceStats : [
-        { device: 'Mobile', count: Math.round(visiteTot * 0.58) },
-        { device: 'Desktop', count: Math.round(visiteTot * 0.42) }
-      ],
-      browser: browserStats.length > 0 ? browserStats : [
-        { browser: 'Chrome', count: Math.round(visiteTot * 0.62) },
-        { browser: 'Safari', count: Math.round(visiteTot * 0.25) },
-        { browser: 'Edge', count: Math.round(visiteTot * 0.08) },
-        { browser: 'Firefox', count: Math.round(visiteTot * 0.05) }
-      ],
-      canali: canaliStats.length > 0 ? canaliStats : [
-        { canale: 'Accesso Diretto', count: Math.round(visiteTot * 0.45) },
-        { canale: 'Motore di Ricerca (Google/Bing)', count: Math.round(visiteTot * 0.30) },
-        { canale: 'QR Code Territoriale', count: Math.round(visiteTot * 0.15) },
-        { canale: 'Portale Istituzionale', count: Math.round(visiteTot * 0.10) }
-      ],
-      paginePiuViste: pagineStats.length > 0 ? pagineStats : [
-        { pagina: '/', count: Math.round(visiteTot * 0.55) },
-        { pagina: '/#sportelli', count: Math.round(visiteTot * 0.22) },
-        { pagina: '/#bandi', count: Math.round(visiteTot * 0.12) },
-        { pagina: '/#eventi', count: Math.round(visiteTot * 0.11) }
-      ],
+      dispositivi: deviceStats,
+      browser: browserStats,
+      canali: canaliStats,
+      paginePiuViste: pagineStats,
       ultimiAccessi
     };
   } catch (err: any) {

@@ -16,7 +16,7 @@ import crypto from 'crypto';
 import sharp from 'sharp';
 import { createServer as createViteServer } from 'vite';
 import { getDb, queryAll, queryOne, run, purgeSampleTestData } from './server/db.js';
-import { recordVisit, getVisitorAnalytics } from './server/visitorTracker.js';
+import { recordVisit, getVisitorAnalytics, resetVisitorStats } from './server/visitorTracker.js';
 import { matchBandiForProfile } from './server/gemini.js';
 import {
   sendAppointmentConfirmationEmail,
@@ -2712,6 +2712,17 @@ app.get('/api/crm/visitatori/export-csv', async (req, res) => {
     res.setHeader('Content-Type', 'text/csv; charset=utf-8');
     res.setHeader('Content-Disposition', `attachment; filename="Report_Accessi_Visitatori_${new Date().toISOString().substring(0, 10)}.csv"`);
     res.send('\uFEFF' + csvLines.join('\r\n')); // BOM UTF-8 per corretta apertura in Excel
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Endpoint Area Riservata: Azzeramento statistiche e log visitatori
+app.post('/api/crm/visitatori/reset', async (req, res) => {
+  try {
+    const db = await getDb();
+    const result = resetVisitorStats(db);
+    res.json(result);
   } catch (err: any) {
     res.status(500).json({ error: err.message });
   }
