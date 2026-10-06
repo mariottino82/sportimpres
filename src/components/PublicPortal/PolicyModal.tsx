@@ -93,7 +93,7 @@ export const PolicyModal: React.FC<PolicyModalProps> = ({ type: initialType, onC
                   <span>Titolare del trattamento</span>
                 </h4>
                 <p className="text-slate-700">
-                  Il titolare del trattamento è <strong>Sviluppo Italia Molise S.p.A.</strong>, P.Iva e C.F.: 00852240704, con sede legale in Campobasso, alla via Nazario Sauro n. 1, tel. 0874 011011, e-mail: <a href="mailto:info@sviluppoitaliamolise.eu" className="text-sky-700 font-semibold underline">info@sviluppoitaliamolise.eu</a>, PEC: <a href="mailto:sviluppoitaliamolise@legalmail.it" className="text-sky-700 font-semibold underline">sviluppoitaliamolise@legalmail.it</a>, sito internet: <a href="https://www.sviluppoitaliamolise.com" target="_blank" rel="noreferrer" className="text-sky-700 font-semibold underline">https://www.sviluppoitaliamolise.com</a>.
+                  Il titolare del trattamento è <strong>Sviluppo Italia Molise S.p.A.</strong>, P.Iva e C.F.: 00852240704, con sede legale in Campobasso, alla via Nazario Sauro n. 1, tel. 0874 4011200, e-mail: <a href="mailto:info@sviluppoitaliamolise.eu" className="text-sky-700 font-semibold underline">info@sviluppoitaliamolise.eu</a>, PEC: <a href="mailto:sviluppoitaliamolise@legalmail.it" className="text-sky-700 font-semibold underline">sviluppoitaliamolise@legalmail.it</a>, sito internet: <a href="https://www.sviluppoitaliamolise.com" target="_blank" rel="noreferrer" className="text-sky-700 font-semibold underline">https://www.sviluppoitaliamolise.com</a>.
                 </p>
               </div>
 
