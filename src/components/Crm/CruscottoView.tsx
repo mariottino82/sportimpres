@@ -15,7 +15,9 @@ import {
   ArrowUpRight,
   Activity,
   Eye,
-  Globe
+  Globe,
+  Plus,
+  Zap
 } from 'lucide-react';
 
 interface CruscottoViewProps {
@@ -273,8 +275,16 @@ export const CruscottoView: React.FC<CruscottoViewProps> = ({
             </div>
 
             {todayAppts.length === 0 ? (
-              <div className="py-8 text-center text-xs text-slate-400">
-                Nessun appuntamento in programma per oggi.
+              <div className="py-8 text-center text-xs text-slate-400 space-y-2">
+                <p>Nessun appuntamento in programma per oggi.</p>
+                <button
+                  onClick={onNavigateToAgenda}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-sky-700 hover:bg-sky-800 text-white font-bold text-xs shadow-xs transition-colors cursor-pointer"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  <Zap className="w-3 h-3 text-amber-300 fill-current" />
+                  <span>Registra Accesso Diretto Oggi</span>
+                </button>
               </div>
             ) : (
               <div className="space-y-3">

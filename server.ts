@@ -723,9 +723,10 @@ app.get('/api/sportelli/:id/slots', (req, res) => {
     const sportello = queryOne('SELECT * FROM sportelli WHERE id = ?', [id]);
     if (!sportello) return res.status(404).json({ error: 'Sportello non trovato' });
 
-    // Verifica stato, data di attivazione e cadenza quindicinale
+    // Verifica stato, data di attivazione e cadenza quindicinale (può essere forzato dall'operatore)
+    const isForzato = req.query.forzato === 'true' || req.query.forzato === '1';
     const openCheck = checkSportelloDateOpen(sportello, date);
-    if (!openCheck.open) {
+    if (!openCheck.open && !isForzato) {
       return res.json({
         date,
         open: false,
@@ -901,7 +902,7 @@ app.post('/api/prenotazioni', async (req, res) => {
 
     const dateOnly = datetime.substring(0, 10);
     const dateCheck = checkSportelloDateOpen(targetSportello, dateOnly);
-    if (!dateCheck.open) {
+    if (!dateCheck.open && !req.body.forzato) {
       return res.status(400).json({
         error: `Data non disponibile per la prenotazione: ${dateCheck.reason || 'Sportello chiuso'}`
       });
@@ -1604,12 +1605,92 @@ app.delete('/api/crm/appuntamenti/:id', (req, res) => {
   }
 });
 
-// Manual appointment creation by back-office operator / contact center
+// Manual appointment creation by back-office operator / contact center (supporta forzatura giorno stesso e walk-in in tempo reale)
 app.post('/api/crm/appuntamenti', async (req, res) => {
   try {
-    const { utenteId, sportelloId, dataOra, modalita, motivo, categoria, note, inviaEmail = true } = req.body;
-    if (!utenteId || !sportelloId || !dataOra) {
-      return res.status(400).json({ error: 'utenteId, sportelloId e dataOra sono obbligatori' });
+    const {
+      utenteId,
+      sportelloId,
+      dataOra,
+      modalita = 'PRESENZA',
+      motivo,
+      categoria,
+      note,
+      inviaEmail = true,
+      stato = 'CONFERMATO',
+      forzato = false,
+      durataMinuti = 30,
+      nuovoUtente
+    } = req.body;
+
+    let targetUtenteId = utenteId;
+
+    // Se l'utente non è ancora registrato (es. si è recato fisicamente allo sportello senza account)
+    if (!targetUtenteId && nuovoUtente) {
+      const tipo = nuovoUtente.tipo || 'ASPIRANTE';
+      const email = (nuovoUtente.email || '').trim().toLowerCase();
+      const telefono = (nuovoUtente.telefono || '').trim();
+      const nowIso = new Date().toISOString().replace('T', ' ').substring(0, 19);
+
+      // Cerca se esiste già per email o telefono per evitare duplicati
+      let existingUser = null;
+      if (email && telefono) {
+        existingUser = queryOne('SELECT * FROM utenti WHERE email = ? OR telefono = ?', [email, telefono]);
+      } else if (email) {
+        existingUser = queryOne('SELECT * FROM utenti WHERE email = ?', [email]);
+      } else if (telefono) {
+        existingUser = queryOne('SELECT * FROM utenti WHERE telefono = ?', [telefono]);
+      }
+
+      if (existingUser) {
+        targetUtenteId = existingUser.id;
+        run('UPDATE utenti SET ultimo_accesso = ?, canale_accesso = ? WHERE id = ?', [
+          nowIso,
+          'Accesso Diretto Sportello',
+          targetUtenteId
+        ]);
+      } else {
+        const insU = run(
+          'INSERT INTO utenti (email, telefono, tipo, data_creazione, ultimo_accesso, canale_accesso) VALUES (?, ?, ?, ?, ?, ?)',
+          [email, telefono, tipo, nowIso, nowIso, 'Accesso Diretto Sportello']
+        );
+        targetUtenteId = insU.lastInsertRowid;
+      }
+
+      // Crea o aggiorna profilo specifico (Impresa o Aspirante)
+      if (tipo === 'IMPRESA') {
+        const denominazione = (nuovoUtente.denominazione || '').trim();
+        const piva = (nuovoUtente.partitaIva || nuovoUtente.codiceFiscale || '').trim();
+        const nomeRef = (nuovoUtente.nomeReferente || nuovoUtente.nome || 'Referente').trim();
+        const cognomeRef = (nuovoUtente.cognomeReferente || nuovoUtente.cognome || 'Azienda').trim();
+        const comune = (nuovoUtente.comune || nuovoUtente.comuneSede || 'Campobasso').trim();
+
+        const existingP = queryOne('SELECT id FROM profili_impresa WHERE utente_id = ?', [targetUtenteId]);
+        if (!existingP) {
+          run(
+            `INSERT INTO profili_impresa (utente_id, denominazione, partita_iva, nome_referente, cognome_referente, ruolo, comune_sede)
+             VALUES (?, ?, ?, ?, ?, 'Titolare', ?)`,
+            [targetUtenteId, denominazione || 'Impresa Registrata allo Sportello', piva || 'N.D.', nomeRef, cognomeRef, comune]
+          );
+        }
+      } else {
+        const nome = (nuovoUtente.nome || '').trim();
+        const cognome = (nuovoUtente.cognome || '').trim();
+        const comune = (nuovoUtente.comune || nuovoUtente.comuneResidenza || 'Campobasso').trim();
+
+        const existingP = queryOne('SELECT id FROM profili_aspirante WHERE utente_id = ?', [targetUtenteId]);
+        if (!existingP) {
+          run(
+            `INSERT INTO profili_aspirante (utente_id, nome, cognome, comune_residenza)
+             VALUES (?, ?, ?, ?)`,
+            [targetUtenteId, nome || 'Utente', cognome || 'Sportello', comune]
+          );
+        }
+      }
+    }
+
+    if (!targetUtenteId || !sportelloId || !dataOra) {
+      return res.status(400).json({ error: 'Utente, sportello e data/ora sono obbligatori per l\'inserimento' });
     }
 
     const token = crypto.randomBytes(16).toString('hex');
@@ -1620,6 +1701,10 @@ app.post('/api/crm/appuntamenti', async (req, res) => {
     let videocallLink = '';
     let attempts = 0;
 
+    const initialStato = stato || 'CONFERMATO';
+    const notePrefix = forzato ? '[ACCESSO DIRETTO ALLO SPORTELLO - FORZATO IN TEMPO REALE] ' : '';
+    const finalNotes = (notePrefix + (note || '')).trim();
+
     while (attempts < 5) {
       try {
         codice = generateUniqueBookingCode();
@@ -1628,8 +1713,22 @@ app.post('/api/crm/appuntamenti', async (req, res) => {
         ins = run(`
           INSERT INTO appuntamenti
           (codice, utente_id, sportello_id, data_ora, durata_minuti, modalita, videocall_link, stato, motivo_testo, categoria_bisogno, token_modifica, creato_il, note_operatore)
-          VALUES (?, ?, ?, ?, 30, ?, ?, 'CONFERMATO', ?, ?, ?, ?, ?)
-        `, [codice, utenteId, sportelloId, dataOra, modalita || 'PRESENZA', videocallLink, motivo || 'Prenotazione da Contact Center', categoria || 'Bandi e finanziamenti', token, nowStr, note || '']);
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `, [
+          codice,
+          targetUtenteId,
+          sportelloId,
+          dataOra,
+          durataMinuti || 30,
+          modalita || 'PRESENZA',
+          videocallLink,
+          initialStato,
+          motivo || 'Accesso Diretto allo Sportello',
+          categoria || 'Bandi e finanziamenti',
+          token,
+          nowStr,
+          finalNotes
+        ]);
 
         break;
       } catch (insertErr: any) {
@@ -1645,15 +1744,15 @@ app.post('/api/crm/appuntamenti', async (req, res) => {
     let emailSent = false;
     if (inviaEmail) {
       try {
-        const u = queryOne('SELECT email, tipo FROM utenti WHERE id = ?', [utenteId]);
+        const u = queryOne('SELECT email, tipo FROM utenti WHERE id = ?', [targetUtenteId]);
         const s = queryOne('SELECT * FROM sportelli WHERE id = ?', [sportelloId]);
         if (u?.email) {
           let recipientName = 'Gentile Utente';
           if (u.tipo === 'IMPRESA') {
-            const prof = queryOne('SELECT denominazione, nome_referente, cognome_referente FROM profili_impresa WHERE utente_id = ?', [utenteId]);
+            const prof = queryOne('SELECT denominazione, nome_referente, cognome_referente FROM profili_impresa WHERE utente_id = ?', [targetUtenteId]);
             recipientName = `${prof?.nome_referente || ''} ${prof?.cognome_referente || ''}`.trim() || prof?.denominazione || 'Gentile Impresa';
           } else {
-            const prof = queryOne('SELECT nome, cognome FROM profili_aspirante WHERE utente_id = ?', [utenteId]);
+            const prof = queryOne('SELECT nome, cognome FROM profili_aspirante WHERE utente_id = ?', [targetUtenteId]);
             recipientName = `${prof?.nome || ''} ${prof?.cognome || ''}`.trim() || 'Gentile Utente';
           }
 
@@ -1685,7 +1784,15 @@ app.post('/api/crm/appuntamenti', async (req, res) => {
       }
     }
 
-    res.json({ success: true, id: ins.lastInsertRowid, codice, emailSent });
+    res.json({
+      success: true,
+      id: ins.lastInsertRowid,
+      codice,
+      utenteId: targetUtenteId,
+      stato: initialStato,
+      dataOra,
+      emailSent
+    });
   } catch (err: any) {
     res.status(500).json({ error: err.message });
   }

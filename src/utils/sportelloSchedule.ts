@@ -115,13 +115,15 @@ export function isSportelloDateOpen(
  * per la prenotazione da parte dell'utente (filtra giorni chiusi,
  * date antecedenti l'attivazione e settimane spente per cadenza quindicinale).
  */
-export function getUpcomingDatesForSportello(sportello: Sportello, limit: number = 8): string[] {
+export function getUpcomingDatesForSportello(sportello: Sportello, limit: number = 8, includeToday: boolean = true): string[] {
   const dates: string[] = [];
   const today = new Date();
   
-  // Si inizia a verificare da domani
+  // Se includeToday è abilitato, verifica anche la disponibilità per la data odierna
   const cur = new Date(today);
-  cur.setDate(cur.getDate() + 1);
+  if (!includeToday) {
+    cur.setDate(cur.getDate() + 1);
+  }
 
   // Scansioniamo fino a 120 giorni nel futuro per raccogliere il numero di aperture desiderato
   for (let i = 0; i < 120; i++) {

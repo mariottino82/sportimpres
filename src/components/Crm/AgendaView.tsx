@@ -15,8 +15,10 @@ import {
   Building2,
   User,
   ArrowUpDown,
-  Trash2
+  Trash2,
+  Zap
 } from 'lucide-react';
+import { NuovoAppuntamentoModal } from './NuovoAppuntamentoModal';
 
 interface AgendaViewProps {
   role: CrmRole;
@@ -65,6 +67,9 @@ export const AgendaView: React.FC<AgendaViewProps> = ({ role, onOpenUser360 }) =
   const [showCheckinModal, setShowCheckinModal] = useState(false);
   const [checkinCode, setCheckinCode] = useState('');
   const [checkinMessage, setCheckinMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+
+  // New appointment / real-time walk-in modal
+  const [showNewApptModal, setShowNewApptModal] = useState(false);
 
   const fetchAgenda = () => {
     setLoading(true);
@@ -192,10 +197,18 @@ export const AgendaView: React.FC<AgendaViewProps> = ({ role, onOpenUser360 }) =
           </p>
         </div>
 
-        <div className="flex items-center gap-3 shrink-0">
+        <div className="flex flex-wrap items-center gap-2.5 shrink-0">
+          <button
+            onClick={() => setShowNewApptModal(true)}
+            className="w-full sm:w-auto flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-sky-700 hover:bg-sky-800 text-white text-xs font-black shadow-sm transition-all cursor-pointer ring-2 ring-sky-600/30"
+          >
+            <Plus className="w-4 h-4 text-sky-200" />
+            <Zap className="w-3.5 h-3.5 text-amber-300 fill-current" />
+            <span>Nuovo Appuntamento (Tempo Reale)</span>
+          </button>
           <button
             onClick={() => setShowCheckinModal(true)}
-            className="w-full sm:w-auto flex items-center justify-center gap-2 px-4 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold shadow-xs transition-colors"
+            className="w-full sm:w-auto flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold shadow-xs transition-colors cursor-pointer"
           >
             <QrCode className="w-4 h-4 text-emerald-400" />
             <span>Check-in Rapido QR</span>
@@ -220,9 +233,29 @@ export const AgendaView: React.FC<AgendaViewProps> = ({ role, onOpenUser360 }) =
           </select>
         </div>
 
-        {/* Date */}
+        {/* Date with quick "Oggi" button */}
         <div>
-          <label className="block font-semibold text-slate-700 mb-1">Data</label>
+          <div className="flex items-center justify-between mb-1">
+            <label className="font-semibold text-slate-700">Data Appuntamento</label>
+            <div className="flex items-center gap-1.5">
+              <button
+                type="button"
+                onClick={() => setSelectedDate(new Date().toISOString().split('T')[0])}
+                className="text-[10px] font-bold text-sky-700 hover:underline cursor-pointer"
+              >
+                ⚡ Oggi
+              </button>
+              {selectedDate && (
+                <button
+                  type="button"
+                  onClick={() => setSelectedDate('')}
+                  className="text-[10px] font-medium text-slate-400 hover:text-slate-600 cursor-pointer"
+                >
+                  • Tutte
+                </button>
+              )}
+            </div>
+          </div>
           <input
             type="date"
             value={selectedDate}
@@ -284,9 +317,17 @@ export const AgendaView: React.FC<AgendaViewProps> = ({ role, onOpenUser360 }) =
                   <div key={appt.id} className="p-4 space-y-3 hover:bg-slate-50 transition-colors">
                     {/* Header line: code, status, modality */}
                     <div className="flex items-center justify-between gap-2">
-                      <span className="font-mono font-bold text-sky-950 text-xs bg-sky-50 px-2 py-0.5 rounded border border-sky-200">
-                        {appt.codice}
-                      </span>
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <span className="font-mono font-bold text-sky-950 text-xs bg-sky-50 px-2 py-0.5 rounded border border-sky-200">
+                          {appt.codice}
+                        </span>
+                        {appt.note_operatore?.includes('ACCESSO DIRETTO') && (
+                          <span className="inline-flex items-center gap-1 text-[9px] font-black uppercase tracking-wider px-1.5 py-0.5 rounded bg-amber-100 text-amber-900 border border-amber-300">
+                            <Zap className="w-2.5 h-2.5 fill-current text-amber-600" />
+                            Accesso Diretto
+                          </span>
+                        )}
+                      </div>
                       <div className="flex items-center gap-1.5 shrink-0">
                         <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold ${
                           appt.modalita === 'PRESENZA' ? 'bg-emerald-50 text-emerald-700' : 'bg-purple-50 text-purple-700'
@@ -390,7 +431,13 @@ export const AgendaView: React.FC<AgendaViewProps> = ({ role, onOpenUser360 }) =
                     return (
                       <tr key={appt.id} className="hover:bg-slate-50/80 transition-colors">
                         <td className="py-3.5 px-4 font-mono font-bold text-sky-950">
-                          {appt.codice}
+                          <div>{appt.codice}</div>
+                          {appt.note_operatore?.includes('ACCESSO DIRETTO') && (
+                            <span className="inline-flex items-center gap-1 text-[9px] font-black uppercase tracking-wider px-1.5 py-0.5 rounded bg-amber-100 text-amber-900 border border-amber-300 mt-1">
+                              <Zap className="w-2.5 h-2.5 fill-current text-amber-600" />
+                              Accesso Diretto
+                            </span>
+                          )}
                         </td>
                         <td className="py-3.5 px-4">
                           <div className="font-semibold text-slate-900">
@@ -681,6 +728,17 @@ export const AgendaView: React.FC<AgendaViewProps> = ({ role, onOpenUser360 }) =
           </div>
         </div>
       )}
+
+      {/* Nuovo Appuntamento / Accesso Diretto Modal */}
+      <NuovoAppuntamentoModal
+        isOpen={showNewApptModal}
+        onClose={() => setShowNewApptModal(false)}
+        onSuccess={() => {
+          fetchAgenda();
+        }}
+        sportelli={sportelli}
+        preselectedSportelloId={selectedSportelloId !== 'all' ? Number(selectedSportelloId) : undefined}
+      />
 
     </div>
   );
