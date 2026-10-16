@@ -116,6 +116,7 @@ function initTables(db: Database.Database) {
       uso_ai INTEGER DEFAULT 1,
       criticita_rilevate TEXT DEFAULT '',
       strumenti_suggeriti TEXT DEFAULT '',
+      note_operatore TEXT DEFAULT '',
       fabbisogno TEXT DEFAULT '',
       categoria_bisogno TEXT DEFAULT '',
       FOREIGN KEY(utente_id) REFERENCES utenti(id)
@@ -129,9 +130,17 @@ function initTables(db: Database.Database) {
       comune_residenza TEXT NOT NULL,
       stato_idea TEXT DEFAULT '',
       settore_interesse TEXT DEFAULT '',
+      settore_ris3 TEXT DEFAULT '',
       condizione_attuale TEXT DEFAULT '',
       fascia_eta TEXT DEFAULT '',
       ha_partita_iva TEXT DEFAULT 'No',
+      fase_vita TEXT DEFAULT 'Startup',
+      dimensione TEXT DEFAULT 'Micro (fino a 9)',
+      grado_innovazione INTEGER DEFAULT 3,
+      uso_ai INTEGER DEFAULT 1,
+      criticita_rilevate TEXT DEFAULT '',
+      strumenti_suggeriti TEXT DEFAULT '',
+      note_operatore TEXT DEFAULT '',
       fabbisogno TEXT DEFAULT '',
       categoria_bisogno TEXT DEFAULT '',
       FOREIGN KEY(utente_id) REFERENCES utenti(id)
@@ -556,6 +565,30 @@ function migrateProfiloColumns(db: Database.Database) {
       if (!colNames.includes('categoria_bisogno')) {
         db.exec("ALTER TABLE profili_aspirante ADD COLUMN categoria_bisogno TEXT DEFAULT ''");
       }
+      if (!colNames.includes('settore_ris3')) {
+        db.exec("ALTER TABLE profili_aspirante ADD COLUMN settore_ris3 TEXT DEFAULT ''");
+      }
+      if (!colNames.includes('fase_vita')) {
+        db.exec("ALTER TABLE profili_aspirante ADD COLUMN fase_vita TEXT DEFAULT 'Startup'");
+      }
+      if (!colNames.includes('dimensione')) {
+        db.exec("ALTER TABLE profili_aspirante ADD COLUMN dimensione TEXT DEFAULT 'Micro (fino a 9)'");
+      }
+      if (!colNames.includes('grado_innovazione')) {
+        db.exec("ALTER TABLE profili_aspirante ADD COLUMN grado_innovazione INTEGER DEFAULT 3");
+      }
+      if (!colNames.includes('uso_ai')) {
+        db.exec("ALTER TABLE profili_aspirante ADD COLUMN uso_ai INTEGER DEFAULT 1");
+      }
+      if (!colNames.includes('criticita_rilevate')) {
+        db.exec("ALTER TABLE profili_aspirante ADD COLUMN criticita_rilevate TEXT DEFAULT ''");
+      }
+      if (!colNames.includes('strumenti_suggeriti')) {
+        db.exec("ALTER TABLE profili_aspirante ADD COLUMN strumenti_suggeriti TEXT DEFAULT ''");
+      }
+      if (!colNames.includes('note_operatore')) {
+        db.exec("ALTER TABLE profili_aspirante ADD COLUMN note_operatore TEXT DEFAULT ''");
+      }
     }
   } catch (e) {
     console.warn('Profili aspirante migration warning:', e);
@@ -570,6 +603,9 @@ function migrateProfiloColumns(db: Database.Database) {
       }
       if (!colNames.includes('categoria_bisogno')) {
         db.exec("ALTER TABLE profili_impresa ADD COLUMN categoria_bisogno TEXT DEFAULT ''");
+      }
+      if (!colNames.includes('note_operatore')) {
+        db.exec("ALTER TABLE profili_impresa ADD COLUMN note_operatore TEXT DEFAULT ''");
       }
     }
   } catch (e) {

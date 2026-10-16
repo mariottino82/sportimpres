@@ -2006,8 +2006,18 @@ app.get('/api/crm/utenti/:id', (req, res) => {
 
     const consensi = queryAll('SELECT * FROM consensi WHERE utente_id = ? ORDER BY timestamp DESC', [id]);
 
-    // Fallback: se il profilo non ha ancora popolato il fabbisogno, ricava dall'appuntamento più recente
+    // Normalizzazione e fallback campi EDP del profilo operatore
     if (profilo) {
+      profilo.settore_ris3 = profilo.settore_ris3 || profilo.ateco_area || profilo.settore_interesse || 'ICT';
+      profilo.fase_vita = profilo.fase_vita || profilo.stato_idea || 'Startup';
+      profilo.dimensione = profilo.dimensione || 'Micro (fino a 9)';
+      profilo.grado_innovazione = (profilo.grado_innovazione !== undefined && profilo.grado_innovazione !== null) ? Number(profilo.grado_innovazione) : 3;
+      profilo.uso_ai = (profilo.uso_ai !== undefined && profilo.uso_ai !== null) ? Number(profilo.uso_ai) : 1;
+      profilo.criticita_identificate = profilo.criticita_rilevate || profilo.criticita_identificate || '';
+      profilo.criticita_rilevate = profilo.criticita_rilevate || profilo.criticita_identificate || '';
+      profilo.strumenti_suggeriti = profilo.strumenti_suggeriti || '';
+      profilo.note_operatore = profilo.note_operatore || utente.note || '';
+
       if (!profilo.fabbisogno && appuntamenti.length > 0) {
         profilo.fabbisogno = appuntamenti[0].motivo_testo || '';
       }
@@ -2044,53 +2054,138 @@ app.all(['/api/crm/utenti/:id/post-colloquio', '/api/crm/utenti/:id/profilo'], (
   }
   try {
     const { id } = req.params;
-    const atecoCodice = req.body.ateco || req.body.atecoCodice || req.body.ateco_codice;
-    const atecoArea = req.body.settore_ris3 || req.body.atecoArea || req.body.ateco_area;
-    const dimensione = req.body.dimensione;
-    const faseVita = req.body.fase_vita || req.body.faseVita;
-    const gradoInnovazione = req.body.grado_innovazione || req.body.gradoInnovazione;
-    const usoAi = req.body.uso_ai || req.body.usoAi;
-    const criticitaRilevate = req.body.criticita_identificate || req.body.criticitaRilevate || req.body.criticita_rilevate;
-    const strumentiSuggeriti = req.body.strumenti_suggeriti || req.body.strumentiSuggeriti;
-    const noteOperatore = req.body.note_operatore || req.body.noteOperatore || req.body.note;
-    const fabbisogno = req.body.fabbisogno !== undefined ? req.body.fabbisogno : null;
-    const categoriaBisogno = req.body.categoria_bisogno || req.body.categoriaBisogno || null;
+    const body = req.body || {};
+    const atecoCodice = body.ateco !== undefined ? body.ateco : (body.atecoCodice !== undefined ? body.atecoCodice : body.ateco_codice);
+    const settoreRis3 = body.settore_ris3 !== undefined ? body.settore_ris3 : (body.atecoArea !== undefined ? body.atecoArea : (body.ateco_area !== undefined ? body.ateco_area : body.settore_interesse));
+    const dimensione = body.dimensione;
+    const faseVita = body.fase_vita !== undefined ? body.fase_vita : body.faseVita;
+    const gradoInnovazione = body.grado_innovazione !== undefined ? body.grado_innovazione : body.gradoInnovazione;
+    const usoAi = body.uso_ai !== undefined ? body.uso_ai : body.usoAi;
+    const criticitaRilevate = body.criticita_identificate !== undefined ? body.criticita_identificate : (body.criticitaRilevate !== undefined ? body.criticitaRilevate : body.criticita_rilevate);
+    const strumentiSuggeriti = body.strumenti_suggeriti !== undefined ? body.strumenti_suggeriti : body.strumentiSuggeriti;
+    const noteOperatore = body.note_operatore !== undefined ? body.note_operatore : (body.noteOperatore !== undefined ? body.noteOperatore : body.note);
+    const fabbisogno = body.fabbisogno;
+    const categoriaBisogno = body.categoria_bisogno !== undefined ? body.categoria_bisogno : body.categoriaBisogno;
 
     const utente = queryOne('SELECT tipo FROM utenti WHERE id = ?', [id]);
     if (!utente) return res.status(404).json({ error: 'Utente non trovato' });
 
     if (utente.tipo === 'IMPRESA') {
-      run(`
-        UPDATE profili_impresa
-        SET ateco_codice = COALESCE(?, ateco_codice),
-            ateco_area = COALESCE(?, ateco_area),
-            dimensione = COALESCE(?, dimensione),
-            fase_vita = COALESCE(?, fase_vita),
-            grado_innovazione = COALESCE(?, grado_innovazione),
-            uso_ai = COALESCE(?, uso_ai),
-            criticita_rilevate = COALESCE(?, criticita_rilevate),
-            strumenti_suggeriti = COALESCE(?, strumenti_suggeriti),
-            fabbisogno = COALESCE(?, fabbisogno),
-            categoria_bisogno = COALESCE(?, categoria_bisogno)
-        WHERE utente_id = ?
-      `, [atecoCodice || null, atecoArea || null, dimensione || null, faseVita || null, gradoInnovazione || null, usoAi || null, criticitaRilevate || null, strumentiSuggeriti || null, fabbisogno, categoriaBisogno, id]);
-    } else if (utente.tipo === 'ASPIRANTE') {
-      const statoIdea = req.body.stato_idea || req.body.statoIdea || faseVita || null;
-      const condizioneAttuale = req.body.condizione_attuale || req.body.condizioneAttuale || null;
+      const existing = queryOne('SELECT id FROM profili_impresa WHERE utente_id = ?', [id]);
+      if (existing) {
+        run(`
+          UPDATE profili_impresa
+          SET ateco_codice = CASE WHEN ? IS NOT NULL THEN ? ELSE ateco_codice END,
+              ateco_area = CASE WHEN ? IS NOT NULL THEN ? ELSE ateco_area END,
+              dimensione = CASE WHEN ? IS NOT NULL THEN ? ELSE dimensione END,
+              fase_vita = CASE WHEN ? IS NOT NULL THEN ? ELSE fase_vita END,
+              grado_innovazione = CASE WHEN ? IS NOT NULL THEN ? ELSE grado_innovazione END,
+              uso_ai = CASE WHEN ? IS NOT NULL THEN ? ELSE uso_ai END,
+              criticita_rilevate = CASE WHEN ? IS NOT NULL THEN ? ELSE criticita_rilevate END,
+              strumenti_suggeriti = CASE WHEN ? IS NOT NULL THEN ? ELSE strumenti_suggeriti END,
+              note_operatore = CASE WHEN ? IS NOT NULL THEN ? ELSE note_operatore END,
+              fabbisogno = CASE WHEN ? IS NOT NULL THEN ? ELSE fabbisogno END,
+              categoria_bisogno = CASE WHEN ? IS NOT NULL THEN ? ELSE categoria_bisogno END
+          WHERE utente_id = ?
+        `, [
+          atecoCodice !== undefined ? atecoCodice : null, atecoCodice !== undefined ? atecoCodice : null,
+          settoreRis3 !== undefined ? settoreRis3 : null, settoreRis3 !== undefined ? settoreRis3 : null,
+          dimensione !== undefined ? dimensione : null, dimensione !== undefined ? dimensione : null,
+          faseVita !== undefined ? faseVita : null, faseVita !== undefined ? faseVita : null,
+          gradoInnovazione !== undefined ? Number(gradoInnovazione) : null, gradoInnovazione !== undefined ? Number(gradoInnovazione) : null,
+          usoAi !== undefined ? Number(usoAi) : null, usoAi !== undefined ? Number(usoAi) : null,
+          criticitaRilevate !== undefined ? criticitaRilevate : null, criticitaRilevate !== undefined ? criticitaRilevate : null,
+          strumentiSuggeriti !== undefined ? strumentiSuggeriti : null, strumentiSuggeriti !== undefined ? strumentiSuggeriti : null,
+          noteOperatore !== undefined ? noteOperatore : null, noteOperatore !== undefined ? noteOperatore : null,
+          fabbisogno !== undefined ? fabbisogno : null, fabbisogno !== undefined ? fabbisogno : null,
+          categoriaBisogno !== undefined ? categoriaBisogno : null, categoriaBisogno !== undefined ? categoriaBisogno : null,
+          id
+        ]);
+      } else {
+        run(`
+          INSERT INTO profili_impresa
+          (utente_id, denominazione, partita_iva, nome_referente, cognome_referente, ruolo, comune_sede, ateco_codice, ateco_area, dimensione, fase_vita, grado_innovazione, uso_ai, criticita_rilevate, strumenti_suggeriti, note_operatore, fabbisogno, categoria_bisogno)
+          VALUES (?, 'Impresa Registrata', 'N.D.', 'Referente', 'Impresa', 'Titolare', 'Campobasso', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `, [
+          id,
+          atecoCodice || '',
+          settoreRis3 || 'ICT',
+          dimensione || 'Piccola (10-49)',
+          faseVita || 'Startup',
+          gradoInnovazione !== undefined ? Number(gradoInnovazione) : 3,
+          usoAi !== undefined ? Number(usoAi) : 1,
+          criticitaRilevate || '',
+          strumentiSuggeriti || '',
+          noteOperatore || '',
+          fabbisogno || '',
+          categoriaBisogno || 'Bandi e finanziamenti'
+        ]);
+      }
+    } else {
+      // utente.tipo === 'ASPIRANTE'
+      const statoIdea = body.stato_idea !== undefined ? body.stato_idea : (body.statoIdea !== undefined ? body.statoIdea : (faseVita !== undefined ? faseVita : null));
+      const condizioneAttuale = body.condizione_attuale !== undefined ? body.condizione_attuale : (body.condizioneAttuale !== undefined ? body.condizioneAttuale : null);
 
-      run(`
-        UPDATE profili_aspirante
-        SET settore_interesse = COALESCE(?, settore_interesse),
-            stato_idea = COALESCE(?, stato_idea),
-            condizione_attuale = COALESCE(?, condizione_attuale),
-            fabbisogno = COALESCE(?, fabbisogno),
-            categoria_bisogno = COALESCE(?, categoria_bisogno)
-        WHERE utente_id = ?
-      `, [atecoArea || atecoCodice || null, statoIdea, condizioneAttuale, fabbisogno, categoriaBisogno, id]);
+      const existing = queryOne('SELECT id FROM profili_aspirante WHERE utente_id = ?', [id]);
+      if (existing) {
+        run(`
+          UPDATE profili_aspirante
+          SET settore_interesse = CASE WHEN ? IS NOT NULL THEN ? ELSE settore_interesse END,
+              settore_ris3 = CASE WHEN ? IS NOT NULL THEN ? ELSE settore_ris3 END,
+              stato_idea = CASE WHEN ? IS NOT NULL THEN ? ELSE stato_idea END,
+              condizione_attuale = CASE WHEN ? IS NOT NULL THEN ? ELSE condizione_attuale END,
+              fase_vita = CASE WHEN ? IS NOT NULL THEN ? ELSE fase_vita END,
+              dimensione = CASE WHEN ? IS NOT NULL THEN ? ELSE dimensione END,
+              grado_innovazione = CASE WHEN ? IS NOT NULL THEN ? ELSE grado_innovazione END,
+              uso_ai = CASE WHEN ? IS NOT NULL THEN ? ELSE uso_ai END,
+              criticita_rilevate = CASE WHEN ? IS NOT NULL THEN ? ELSE criticita_rilevate END,
+              strumenti_suggeriti = CASE WHEN ? IS NOT NULL THEN ? ELSE strumenti_suggeriti END,
+              note_operatore = CASE WHEN ? IS NOT NULL THEN ? ELSE note_operatore END,
+              fabbisogno = CASE WHEN ? IS NOT NULL THEN ? ELSE fabbisogno END,
+              categoria_bisogno = CASE WHEN ? IS NOT NULL THEN ? ELSE categoria_bisogno END
+          WHERE utente_id = ?
+        `, [
+          settoreRis3 !== undefined ? settoreRis3 : null, settoreRis3 !== undefined ? settoreRis3 : null,
+          settoreRis3 !== undefined ? settoreRis3 : null, settoreRis3 !== undefined ? settoreRis3 : null,
+          statoIdea !== undefined ? statoIdea : null, statoIdea !== undefined ? statoIdea : null,
+          condizioneAttuale !== undefined ? condizioneAttuale : null, condizioneAttuale !== undefined ? condizioneAttuale : null,
+          faseVita !== undefined ? faseVita : null, faseVita !== undefined ? faseVita : null,
+          dimensione !== undefined ? dimensione : null, dimensione !== undefined ? dimensione : null,
+          gradoInnovazione !== undefined ? Number(gradoInnovazione) : null, gradoInnovazione !== undefined ? Number(gradoInnovazione) : null,
+          usoAi !== undefined ? Number(usoAi) : null, usoAi !== undefined ? Number(usoAi) : null,
+          criticitaRilevate !== undefined ? criticitaRilevate : null, criticitaRilevate !== undefined ? criticitaRilevate : null,
+          strumentiSuggeriti !== undefined ? strumentiSuggeriti : null, strumentiSuggeriti !== undefined ? strumentiSuggeriti : null,
+          noteOperatore !== undefined ? noteOperatore : null, noteOperatore !== undefined ? noteOperatore : null,
+          fabbisogno !== undefined ? fabbisogno : null, fabbisogno !== undefined ? fabbisogno : null,
+          categoriaBisogno !== undefined ? categoriaBisogno : null, categoriaBisogno !== undefined ? categoriaBisogno : null,
+          id
+        ]);
+      } else {
+        run(`
+          INSERT INTO profili_aspirante
+          (utente_id, nome, cognome, comune_residenza, settore_interesse, settore_ris3, stato_idea, condizione_attuale, fase_vita, dimensione, grado_innovazione, uso_ai, criticita_rilevate, strumenti_suggeriti, note_operatore, fabbisogno, categoria_bisogno)
+          VALUES (?, 'Aspirante', 'Imprenditore', 'Campobasso', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `, [
+          id,
+          settoreRis3 || 'ICT',
+          settoreRis3 || 'ICT',
+          statoIdea || 'Startup',
+          condizioneAttuale || 'Occupato',
+          faseVita || 'Startup',
+          dimensione || 'Micro (fino a 9)',
+          gradoInnovazione !== undefined ? Number(gradoInnovazione) : 3,
+          usoAi !== undefined ? Number(usoAi) : 1,
+          criticitaRilevate || '',
+          strumentiSuggeriti || '',
+          noteOperatore || '',
+          fabbisogno || '',
+          categoriaBisogno || 'Bandi e finanziamenti'
+        ]);
+      }
     }
 
-    if (noteOperatore) {
-      run('UPDATE utenti SET note = ? WHERE id = ?', [noteOperatore, id]);
+    if (noteOperatore !== undefined) {
+      run('UPDATE utenti SET note = ? WHERE id = ?', [noteOperatore || '', id]);
     }
 
     res.json({ success: true, messaggio: 'Scheda EDP aggiornata dall\'operatore con successo nel database' });

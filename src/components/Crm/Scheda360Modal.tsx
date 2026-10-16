@@ -101,15 +101,15 @@ export const Scheda360Modal: React.FC<Scheda360ModalProps> = ({
         setUserData(data);
         const p = data.profilo || {};
         const appts = Array.isArray(data.appuntamenti) ? data.appuntamenti : [];
-        setAtecoVerificato(p.ateco || '');
-        setRis3Verificata(p.settore_ris3 || p.settore_attivita || 'ICT');
-        setDimensioneVerificata(p.dimensione || 'Piccola');
-        setFaseVitaVerificata(p.fase_vita || 'Startup');
-        setInnovazioneScore(p.grado_innovazione || 3);
-        setAiScore(p.uso_ai || 1);
-        setCriticita(p.criticita_identificate || '');
+        setAtecoVerificato(p.ateco || p.ateco_codice || '');
+        setRis3Verificata(p.settore_ris3 || p.ateco_area || p.settore_interesse || p.settore_attivita || 'ICT');
+        setDimensioneVerificata(p.dimensione || 'Micro (fino a 9)');
+        setFaseVitaVerificata(p.fase_vita || p.stato_idea || 'Startup');
+        setInnovazioneScore(p.grado_innovazione !== undefined && p.grado_innovazione !== null ? Number(p.grado_innovazione) : 3);
+        setAiScore(p.uso_ai !== undefined && p.uso_ai !== null ? Number(p.uso_ai) : 1);
+        setCriticita(p.criticita_identificate || p.criticita_rilevate || '');
         setStrumentiSuggeriti(p.strumenti_suggeriti || '');
-        setNoteOperatore(p.note_operatore || '');
+        setNoteOperatore(p.note_operatore || (data.utente && data.utente.note) || '');
 
         const currentFabbisogno = p.fabbisogno || (appts[0] && appts[0].motivo_testo) || '';
         const currentCategoria = p.categoria_bisogno || (appts[0] && appts[0].categoria_bisogno) || 'Bandi e finanziamenti';
@@ -140,6 +140,7 @@ export const Scheda360Modal: React.FC<Scheda360ModalProps> = ({
           grado_innovazione: innovazioneScore,
           uso_ai: aiScore,
           criticita_identificate: criticita,
+          criticita_rilevate: criticita,
           strumenti_suggeriti: strumentiSuggeriti,
           note_operatore: noteOperatore,
           fabbisogno,
@@ -148,6 +149,7 @@ export const Scheda360Modal: React.FC<Scheda360ModalProps> = ({
       });
       if (!res.ok) throw new Error('Errore nel salvataggio della scheda EDP');
       setSaveSuccess(true);
+      fetchUser360();
       if (onUpdated) onUpdated();
       setTimeout(() => setSaveSuccess(false), 3000);
     } catch (err: any) {
@@ -171,6 +173,7 @@ export const Scheda360Modal: React.FC<Scheda360ModalProps> = ({
       if (!res.ok) throw new Error('Errore nel salvataggio del fabbisogno');
       setFabbisognoSavedSuccess(true);
       setIsEditingFabbisogno(false);
+      fetchUser360();
       if (onUpdated) onUpdated();
       setTimeout(() => setFabbisognoSavedSuccess(false), 3000);
     } catch (err: any) {
