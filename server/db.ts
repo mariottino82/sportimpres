@@ -854,55 +854,7 @@ function seedSampleCrmData(db: Database.Database) {
 }
 
 function seedEventi(db: Database.Database) {
-  try {
-    const check = db.prepare("SELECT COUNT(*) as count FROM eventi").get() as { count: number } | undefined;
-    if (check && check.count > 0) return;
-
-    const stmt = db.prepare(`
-      INSERT INTO eventi (data, tipo, titolo, testo, luogo, ora, nota, bottone, link, manifesto_url, attivo, creato_il)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, datetime('now'))
-    `);
-
-    stmt.run(
-      '2026-09-28',
-      'EVENTO',
-      'Inaugurazione Sportello Imprese – Sede di Trivento',
-      'Inaugurazione della nuova sede di Trivento presso il Centro Polifunzionale Comunale, Sala consiliare C.so G. Marconi.',
-      'Trivento',
-      '18:00',
-      'Lunedì 28 settembre',
-      'Vedi manifesto',
-      '',
-      'manifesto_trivento'
-    );
-
-    stmt.run(
-      '2026-10-15',
-      'WORKSHOP',
-      'Workshop di esempio: dall\'idea al business plan',
-      'Laboratorio pratico per aspiranti imprenditori, in presenza e online.',
-      'Termoli + online',
-      '15:00',
-      'Gratuito',
-      'Iscriviti',
-      '#',
-      ''
-    );
-
-    stmt.run(
-      '2026-10-22',
-      'BANDO',
-      'News di esempio: apertura avviso agevolazioni',
-      'Sintesi della notizia con scadenze principali e requisiti.',
-      '',
-      '',
-      'Serve aiuto?',
-      'Prenota consulenza',
-      '#sportelli',
-      ''
-    );
-  } catch (err) {
-    console.error('Error seeding eventi:', err);
-  }
+  // Nessun evento/appuntamento di esempio predefinito:
+  // Mostra gli appuntamenti e gli eventi SOLO se inseriti realmente nel database dagli operatori
 }
 

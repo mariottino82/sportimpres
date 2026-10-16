@@ -167,8 +167,8 @@ export const LandingView: React.FC<LandingViewProps> = ({
   const [policyModalType, setPolicyModalType] = useState<'privacy' | 'cookies' | null>(null);
   const [webtvPreviewOpen, setWebtvPreviewOpen] = useState<boolean>(false);
   const [videos, setVideos] = useState<WebTvVideo[]>([]);
-  const [eventiList, setEventiList] = useState<EventoItem[]>(EVENTI_DEFAULT);
-  const [loadingEventi, setLoadingEventi] = useState<boolean>(false);
+  const [eventiList, setEventiList] = useState<EventoItem[]>([]);
+  const [loadingEventi, setLoadingEventi] = useState<boolean>(true);
 
   useEffect(() => {
     let isMounted = true;
@@ -193,10 +193,16 @@ export const LandingView: React.FC<LandingViewProps> = ({
       })
       .catch(() => {});
 
+    setLoadingEventi(true);
     fetch('/api/eventi')
-      .then((res) => (res.ok ? res.json() : null))
+      .then((res) => (res.ok ? res.json() : []))
       .then((data) => {
-        if (!isMounted || !Array.isArray(data) || data.length === 0) return;
+        if (!isMounted) return;
+        if (!Array.isArray(data) || data.length === 0) {
+          setEventiList([]);
+          setLoadingEventi(false);
+          return;
+        }
         const mapped: EventoItem[] = data.map((d: any) => ({
           id: d.id,
           data: d.data,
@@ -215,8 +221,14 @@ export const LandingView: React.FC<LandingViewProps> = ({
           attivo: d.attivo !== undefined ? d.attivo : 1,
         }));
         setEventiList(mapped);
+        setLoadingEventi(false);
       })
-      .catch(() => {});
+      .catch(() => {
+        if (isMounted) {
+          setEventiList([]);
+          setLoadingEventi(false);
+        }
+      });
 
     return () => {
       isMounted = false;
@@ -559,8 +571,10 @@ export const LandingView: React.FC<LandingViewProps> = ({
             Caricamento appuntamenti in corso...
           </div>
         ) : filteredEventi.length === 0 ? (
-          <div className="p-8 text-center text-sm text-slate-500 bg-white rounded-2xl border border-slate-200">
-            Nessuna notizia o evento in programma in questa categoria.
+          <div className="p-10 text-center text-sm text-slate-500 bg-white rounded-2xl border border-slate-200 flex flex-col items-center justify-center">
+            <Calendar className="w-8 h-8 text-slate-300 mb-2 stroke-1" />
+            <p className="font-semibold text-slate-700">Nessun appuntamento o evento in programma al momento</p>
+            <p className="text-xs text-slate-400 mt-1">Gli eventi, i workshop e le novità sui bandi verranno pubblicati in questa sezione non appena programmati.</p>
           </div>
         ) : (
           <div id="eventi-grid" className="grid grid-cols-1 md:grid-cols-3 gap-4">
