@@ -562,7 +562,7 @@ export const AgendaView: React.FC<AgendaViewProps> = ({ role, onOpenUser360 }) =
               {newStatus === 'SVOLTO' && (
                 <div>
                   <label className="block font-semibold text-slate-700 mb-1">
-                    Data e Ora Colloquio (Fuso Orario Italiano)
+                    Data e Ora Colloquio
                   </label>
                   <input
                     type="datetime-local"

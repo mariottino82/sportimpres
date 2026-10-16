@@ -387,7 +387,7 @@ export const InterazioniView: React.FC<InterazioniViewProps> = ({ role, onOpenUs
 
               <div>
                 <label className="block font-semibold text-slate-700 mb-1">
-                  Data e Ora dell'Interazione (Fuso Orario Italiano)
+                  Data e Ora dell'Interazione 
                 </label>
                 <input
                   type="datetime-local"

@@ -343,11 +343,6 @@ export const Scheda360Modal: React.FC<Scheda360ModalProps> = ({
                         </h5>
                       </div>
                       <div className="flex items-center gap-1.5 shrink-0">
-                        {categoriaBisogno && !isEditingFabbisogno && (
-                          <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-blue-600 text-white shadow-xs">
-                            {categoriaBisogno}
-                          </span>
-                        )}
                         {!isEditingFabbisogno && (
                           <button
                             type="button"
@@ -428,11 +423,6 @@ export const Scheda360Modal: React.FC<Scheda360ModalProps> = ({
                         </h5>
                       </div>
                       <div className="flex items-center gap-1.5 shrink-0">
-                        {categoriaBisogno && !isEditingFabbisogno && (
-                          <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-blue-600 text-white shadow-xs">
-                            {categoriaBisogno}
-                          </span>
-                        )}
                         {!isEditingFabbisogno && (
                           <button
                             type="button"
