@@ -59,6 +59,13 @@ export const AgendaView: React.FC<AgendaViewProps> = ({ role, onOpenUser360 }) =
   const [followupEsito, setFollowupEsito] = useState('Positivo');
   const [updatingStatus, setUpdatingStatus] = useState(false);
 
+  const getLocalNowInput = () => {
+    const d = new Date();
+    const pad = (n: number) => String(n).padStart(2, '0');
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  };
+  const [interactionTime, setInteractionTime] = useState<string>(getLocalNowInput());
+
   // Deletion modal
   const [apptToDelete, setApptToDelete] = useState<Appointment | null>(null);
   const [isDeletingAppt, setIsDeletingAppt] = useState(false);
@@ -126,7 +133,8 @@ export const AgendaView: React.FC<AgendaViewProps> = ({ role, onOpenUser360 }) =
           stato: newStatus,
           note_operatore: operatorNotes,
           followup_date: followupDate || null,
-          followup_esito: followupEsito
+          followup_esito: followupEsito,
+          dataOraInterazione: interactionTime
         })
       });
       if (!res.ok) throw new Error('Errore aggiornamento stato');
@@ -550,6 +558,23 @@ export const AgendaView: React.FC<AgendaViewProps> = ({ role, onOpenUser360 }) =
                   <option value="ANNULLATO">ANNULLATO</option>
                 </select>
               </div>
+
+              {newStatus === 'SVOLTO' && (
+                <div>
+                  <label className="block font-semibold text-slate-700 mb-1">
+                    Data e Ora Colloquio (Fuso Orario Italiano)
+                  </label>
+                  <input
+                    type="datetime-local"
+                    value={interactionTime}
+                    onChange={(e) => setInteractionTime(e.target.value)}
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg bg-white font-medium"
+                  />
+                  <p className="text-[10.5px] text-slate-500 mt-1">
+                    Verrà registrata un'interazione nello storico con questo orario italiano.
+                  </p>
+                </div>
+              )}
 
               {newStatus === 'FOLLOWUP' && (
                 <div>

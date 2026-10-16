@@ -116,6 +116,8 @@ function initTables(db: Database.Database) {
       uso_ai INTEGER DEFAULT 1,
       criticita_rilevate TEXT DEFAULT '',
       strumenti_suggeriti TEXT DEFAULT '',
+      fabbisogno TEXT DEFAULT '',
+      categoria_bisogno TEXT DEFAULT '',
       FOREIGN KEY(utente_id) REFERENCES utenti(id)
     );
 
@@ -130,6 +132,8 @@ function initTables(db: Database.Database) {
       condizione_attuale TEXT DEFAULT '',
       fascia_eta TEXT DEFAULT '',
       ha_partita_iva TEXT DEFAULT 'No',
+      fabbisogno TEXT DEFAULT '',
+      categoria_bisogno TEXT DEFAULT '',
       FOREIGN KEY(utente_id) REFERENCES utenti(id)
     );
 
@@ -261,6 +265,7 @@ function initTables(db: Database.Database) {
   migrateSportelliColumns(db);
   migrateBandiColumns(db);
   migrateEventiColumns(db);
+  migrateProfiloColumns(db);
   seedCrmOperatori(db);
   seedInitialData(db);
   seedEventi(db);
@@ -537,6 +542,38 @@ function migrateEventiColumns(db: Database.Database) {
     }
   } catch (e) {
     console.warn('Eventi migration warning:', e);
+  }
+}
+
+function migrateProfiloColumns(db: Database.Database) {
+  try {
+    const aspCols = db.pragma('table_info(profili_aspirante)') as Array<{ name: string }>;
+    if (aspCols && aspCols.length) {
+      const colNames = aspCols.map(c => c.name);
+      if (!colNames.includes('fabbisogno')) {
+        db.exec("ALTER TABLE profili_aspirante ADD COLUMN fabbisogno TEXT DEFAULT ''");
+      }
+      if (!colNames.includes('categoria_bisogno')) {
+        db.exec("ALTER TABLE profili_aspirante ADD COLUMN categoria_bisogno TEXT DEFAULT ''");
+      }
+    }
+  } catch (e) {
+    console.warn('Profili aspirante migration warning:', e);
+  }
+
+  try {
+    const impCols = db.pragma('table_info(profili_impresa)') as Array<{ name: string }>;
+    if (impCols && impCols.length) {
+      const colNames = impCols.map(c => c.name);
+      if (!colNames.includes('fabbisogno')) {
+        db.exec("ALTER TABLE profili_impresa ADD COLUMN fabbisogno TEXT DEFAULT ''");
+      }
+      if (!colNames.includes('categoria_bisogno')) {
+        db.exec("ALTER TABLE profili_impresa ADD COLUMN categoria_bisogno TEXT DEFAULT ''");
+      }
+    }
+  } catch (e) {
+    console.warn('Profili impresa migration warning:', e);
   }
 }
 

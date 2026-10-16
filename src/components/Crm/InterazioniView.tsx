@@ -24,6 +24,20 @@ interface InterazioniViewProps {
   onOpenUser360: (userId: number) => void;
 }
 
+const getLocalNowInput = () => {
+  const d = new Date();
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+};
+
+const formatSafeDateTime = (val?: string) => {
+  if (!val) return 'N/D';
+  const clean = val.trim().replace(' ', 'T');
+  const d = new Date(clean);
+  if (isNaN(d.getTime())) return val;
+  return `${d.toLocaleDateString('it-IT', { day: '2-digit', month: '2-digit', year: 'numeric' })} ore ${d.toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' })}`;
+};
+
 export const InterazioniView: React.FC<InterazioniViewProps> = ({ role, onOpenUser360 }) => {
   const [interazioni, setInterazioni] = useState<Interaction[]>([]);
   const [ricontatti, setRicontatti] = useState<any[]>([]);
@@ -42,6 +56,7 @@ export const InterazioniView: React.FC<InterazioniViewProps> = ({ role, onOpenUs
     sportello_id: '1',
     operatore_nome: 'Operatore SIM',
     canale: 'TELEFONO',
+    data_ora: getLocalNowInput(),
     tipologia_richiesta: 'Informazioni sui bandi e requisiti di accesso',
     bandi_trattati: 'Voucher Innovazione 2026',
     esito: 'Colloquio positivo, inviato materiale via email',
@@ -208,7 +223,7 @@ export const InterazioniView: React.FC<InterazioniViewProps> = ({ role, onOpenUs
                       </span>
                       <span className="text-slate-400 text-[11px]">•</span>
                       <span className="text-slate-500 text-[11px]">
-                        {new Date(it.data_ora).toLocaleDateString('it-IT')} ore {new Date(it.data_ora).toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' })}
+                        {formatSafeDateTime(it.data_ora)}
                       </span>
                       <span className="text-slate-400 text-[11px]">•</span>
                       <span className="text-slate-500 text-[11px]">Operatore: <strong>{it.operatore_nome}</strong></span>
@@ -371,6 +386,19 @@ export const InterazioniView: React.FC<InterazioniViewProps> = ({ role, onOpenUs
               </div>
 
               <div>
+                <label className="block font-semibold text-slate-700 mb-1">
+                  Data e Ora dell'Interazione (Fuso Orario Italiano)
+                </label>
+                <input
+                  type="datetime-local"
+                  required
+                  value={newInteraction.data_ora}
+                  onChange={(e) => setNewInteraction({ ...newInteraction, data_ora: e.target.value })}
+                  className="w-full px-3 py-2 border border-slate-300 rounded-lg bg-white font-medium"
+                />
+              </div>
+
+              <div>
                 <label className="block font-semibold text-slate-700 mb-1">Tipologia di Richiesta *</label>
                 <input
                   type="text"
@@ -464,7 +492,7 @@ export const InterazioniView: React.FC<InterazioniViewProps> = ({ role, onOpenUs
                 {interactionToDelete.tipologia_richiesta}
               </div>
               <div className="text-[11px] text-slate-500">
-                {new Date(interactionToDelete.data_ora).toLocaleDateString('it-IT')} • Canale: {interactionToDelete.canale} • {interactionToDelete.operatore_nome}
+                {formatSafeDateTime(interactionToDelete.data_ora)} • Canale: {interactionToDelete.canale} • {interactionToDelete.operatore_nome}
               </div>
               <p className="text-[11px] text-slate-600 italic mt-1">
                 "{interactionToDelete.esito || interactionToDelete.note}"

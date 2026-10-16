@@ -99,6 +99,15 @@ async function autoOptimizeExistingUploads() {
   }
 }
 
+// Helper per data e ora nel fuso orario italiano (Europe/Rome - CET/CEST)
+export function getRomeDateTimeStr(d: Date = new Date()): string {
+  return d.toLocaleString('sv-SE', { timeZone: 'Europe/Rome' }).replace('T', ' ');
+}
+
+export function getRomeDateStr(d: Date = new Date()): string {
+  return d.toLocaleString('sv-SE', { timeZone: 'Europe/Rome' }).substring(0, 10);
+}
+
 // Avvia l'ottimizzazione in background senza bloccare il boot
 setTimeout(() => {
   autoOptimizeExistingUploads().catch(console.error);
@@ -944,6 +953,9 @@ app.post('/api/prenotazioni', async (req, res) => {
       const gradoInnovazione = domandeEdp?.gradoInnovazione || 3;
       const usoAi = domandeEdp?.usoAi || 1;
 
+      const fabbisognoRichiesto = (motivo?.testoLibero || '').trim();
+      const catBisogno = (motivo?.categoriaBisogno || 'Bandi e finanziamenti').trim();
+
       const existingProf = queryOne('SELECT id FROM profili_impresa WHERE utente_id = ?', [utenteId]);
       if (existingProf) {
         run(`
@@ -954,15 +966,17 @@ app.post('/api/prenotazioni', async (req, res) => {
               dimensione = COALESCE(NULLIF(?, ''), dimensione),
               fase_vita = COALESCE(NULLIF(?, ''), fase_vita),
               grado_innovazione = COALESCE(?, grado_innovazione),
-              uso_ai = COALESCE(?, uso_ai)
+              uso_ai = COALESCE(?, uso_ai),
+              fabbisogno = CASE WHEN ? != '' THEN ? ELSE fabbisogno END,
+              categoria_bisogno = CASE WHEN ? != '' THEN ? ELSE categoria_bisogno END
           WHERE utente_id = ?
-        `, [denom, piva, nomeRef, cognomeRef, ruolo, comuneSede, atecoCodice, atecoArea, dimensione, faseVita, gradoInnovazione, usoAi, utenteId]);
+        `, [denom, piva, nomeRef, cognomeRef, ruolo, comuneSede, atecoCodice, atecoArea, dimensione, faseVita, gradoInnovazione, usoAi, fabbisognoRichiesto, fabbisognoRichiesto, catBisogno, catBisogno, utenteId]);
       } else {
         run(`
           INSERT INTO profili_impresa 
-          (utente_id, denominazione, partita_iva, nome_referente, cognome_referente, ruolo, comune_sede, ateco_codice, ateco_area, dimensione, fase_vita, grado_innovazione, uso_ai)
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        `, [utenteId, denom, piva, nomeRef, cognomeRef, ruolo, comuneSede, atecoCodice, atecoArea, dimensione, faseVita, gradoInnovazione, usoAi]);
+          (utente_id, denominazione, partita_iva, nome_referente, cognome_referente, ruolo, comune_sede, ateco_codice, ateco_area, dimensione, fase_vita, grado_innovazione, uso_ai, fabbisogno, categoria_bisogno)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `, [utenteId, denom, piva, nomeRef, cognomeRef, ruolo, comuneSede, atecoCodice, atecoArea, dimensione, faseVita, gradoInnovazione, usoAi, fabbisognoRichiesto, catBisogno]);
       }
     } else {
       // ASPIRANTE
@@ -975,6 +989,8 @@ app.post('/api/prenotazioni', async (req, res) => {
       const condizioneAttuale = domandeEdp?.condizioneAttuale || '';
       const fasciaEta = domandeEdp?.fasciaEta || '';
       const haPartitaIva = domandeEdp?.haPartitaIva || 'No';
+      const fabbisognoAspirante = (motivo?.testoLibero || '').trim();
+      const catBisognoAspirante = (motivo?.categoriaBisogno || 'Bandi e finanziamenti').trim();
 
       const existingProf = queryOne('SELECT id FROM profili_aspirante WHERE utente_id = ?', [utenteId]);
       if (existingProf) {
@@ -985,15 +1001,17 @@ app.post('/api/prenotazioni', async (req, res) => {
               settore_interesse = COALESCE(NULLIF(?, ''), settore_interesse),
               condizione_attuale = COALESCE(NULLIF(?, ''), condizione_attuale),
               fascia_eta = COALESCE(NULLIF(?, ''), fascia_eta),
-              ha_partita_iva = COALESCE(NULLIF(?, ''), ha_partita_iva)
+              ha_partita_iva = COALESCE(NULLIF(?, ''), ha_partita_iva),
+              fabbisogno = CASE WHEN ? != '' THEN ? ELSE fabbisogno END,
+              categoria_bisogno = CASE WHEN ? != '' THEN ? ELSE categoria_bisogno END
           WHERE utente_id = ?
-        `, [nome, cognome, comuneResidenza, statoIdea, settoreInteresse, condizioneAttuale, fasciaEta, haPartitaIva, utenteId]);
+        `, [nome, cognome, comuneResidenza, statoIdea, settoreInteresse, condizioneAttuale, fasciaEta, haPartitaIva, fabbisognoAspirante, fabbisognoAspirante, catBisognoAspirante, catBisognoAspirante, utenteId]);
       } else {
         run(`
           INSERT INTO profili_aspirante
-          (utente_id, nome, cognome, comune_residenza, stato_idea, settore_interesse, condizione_attuale, fascia_eta, ha_partita_iva)
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-        `, [utenteId, nome, cognome, comuneResidenza, statoIdea, settoreInteresse, condizioneAttuale, fasciaEta, haPartitaIva]);
+          (utente_id, nome, cognome, comune_residenza, stato_idea, settore_interesse, condizione_attuale, fascia_eta, ha_partita_iva, fabbisogno, categoria_bisogno)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `, [utenteId, nome, cognome, comuneResidenza, statoIdea, settoreInteresse, condizioneAttuale, fasciaEta, haPartitaIva, fabbisognoAspirante, catBisognoAspirante]);
       }
     }
 
@@ -1575,16 +1593,18 @@ app.patch(['/api/crm/appuntamenti/:id/stato', '/api/crm/appuntamenti/:id'], (req
     if (stato === 'SVOLTO') {
       const appt = queryOne('SELECT * FROM appuntamenti WHERE id = ?', [id]);
       if (appt) {
-        const nowStr = new Date().toISOString().replace('T', ' ').substring(0, 19);
+        // Se il client passa una data/ora interazione specifica usala, altrimenti orario locale italiano (Europe/Rome)
+        const customDataOra = (req.body.dataOraInterazione || req.body.data_ora || '').trim();
+        const nowStr = customDataOra ? customDataOra.replace('T', ' ') : getRomeDateTimeStr();
         const nextDate = new Date();
         nextDate.setDate(nextDate.getDate() + 30); // 30-day follow up reminder
-        const nextDateStr = nextDate.toISOString().substring(0, 10);
+        const nextDateStr = getRomeDateStr(nextDate);
 
         run(`
           INSERT INTO interazioni
           (utente_id, appuntamento_id, sportello_id, operatore_nome, data_ora, canale, tipologia_richiesta, bandi_trattati, esito, stato_followup, data_prossimo_ricontatto, note)
           VALUES (?, ?, ?, 'Operatore Sportello', ?, 'SPORTELLO', ?, ?, 'COLLOQUIO_SVOLTO', 'PROGRAMMATO', ?, ?)
-        `, [appt.utente_id, appt.id, appt.sportello_id, nowStr, appt.categoria_bisogno, '', nextDateStr, noteOperatore || 'Colloquio completato. Avviata fase di orientamento.']);
+        `, [appt.utente_id, appt.id, appt.sportello_id, nowStr, appt.categoria_bisogno || 'Orientamento Bandi', '', nextDateStr, noteOperatore || 'Colloquio completato. Avviata fase di orientamento.']);
       }
     }
 
@@ -1681,11 +1701,31 @@ app.post('/api/crm/appuntamenti', async (req, res) => {
         const existingP = queryOne('SELECT id FROM profili_aspirante WHERE utente_id = ?', [targetUtenteId]);
         if (!existingP) {
           run(
-            `INSERT INTO profili_aspirante (utente_id, nome, cognome, comune_residenza)
-             VALUES (?, ?, ?, ?)`,
-            [targetUtenteId, nome || 'Utente', cognome || 'Sportello', comune]
+            `INSERT INTO profili_aspirante (utente_id, nome, cognome, comune_residenza, fabbisogno, categoria_bisogno)
+             VALUES (?, ?, ?, ?, ?, ?)`,
+            [targetUtenteId, nome || 'Utente', cognome || 'Sportello', comune, motivo || '', categoria || '']
+          );
+        } else if (motivo || categoria) {
+          run(
+            `UPDATE profili_aspirante
+             SET fabbisogno = CASE WHEN (fabbisogno IS NULL OR fabbisogno = '') AND ? != '' THEN ? ELSE fabbisogno END,
+                 categoria_bisogno = CASE WHEN (categoria_bisogno IS NULL OR categoria_bisogno = '') AND ? != '' THEN ? ELSE categoria_bisogno END
+             WHERE utente_id = ?`,
+            [motivo || '', motivo || '', categoria || '', categoria || '', targetUtenteId]
           );
         }
+      }
+    } else if (targetUtenteId && (motivo || categoria)) {
+      // Se l'utente era già registrato, sincronizza fabbisogno nel profilo aspirante se non ancora presente
+      try {
+        run(`
+          UPDATE profili_aspirante
+          SET fabbisogno = CASE WHEN (fabbisogno IS NULL OR fabbisogno = '') AND ? != '' THEN ? ELSE fabbisogno END,
+              categoria_bisogno = CASE WHEN (categoria_bisogno IS NULL OR categoria_bisogno = '') AND ? != '' THEN ? ELSE categoria_bisogno END
+          WHERE utente_id = ?
+        `, [motivo || '', motivo || '', categoria || '', categoria || '', targetUtenteId]);
+      } catch (e) {
+        // Ignora
       }
     }
 
@@ -1966,6 +2006,16 @@ app.get('/api/crm/utenti/:id', (req, res) => {
 
     const consensi = queryAll('SELECT * FROM consensi WHERE utente_id = ? ORDER BY timestamp DESC', [id]);
 
+    // Fallback: se il profilo non ha ancora popolato il fabbisogno, ricava dall'appuntamento più recente
+    if (profilo) {
+      if (!profilo.fabbisogno && appuntamenti.length > 0) {
+        profilo.fabbisogno = appuntamenti[0].motivo_testo || '';
+      }
+      if (!profilo.categoria_bisogno && appuntamenti.length > 0) {
+        profilo.categoria_bisogno = appuntamenti[0].categoria_bisogno || '';
+      }
+    }
+
     const privacyConsent = consensi.find((c: any) => c.tipo === 'PRIVACY' && (c.accettato === 1 || c.accettato === true));
     const newsletterConsent = consensi.find((c: any) => c.tipo === 'NEWSLETTER');
     const geoConsent = consensi.find((c: any) => c.tipo === 'GEOLOCALIZZAZIONE');
@@ -1987,7 +2037,7 @@ app.get('/api/crm/utenti/:id', (req, res) => {
   }
 });
 
-// Update post-interview fields / EDP profile by operator
+// Update post-interview fields / EDP profile / Fabbisogno by operator
 app.all(['/api/crm/utenti/:id/post-colloquio', '/api/crm/utenti/:id/profilo'], (req, res) => {
   if (req.method !== 'PUT' && req.method !== 'PATCH') {
     return res.status(405).json({ error: 'Metodo non consentito' });
@@ -2003,6 +2053,8 @@ app.all(['/api/crm/utenti/:id/post-colloquio', '/api/crm/utenti/:id/profilo'], (
     const criticitaRilevate = req.body.criticita_identificate || req.body.criticitaRilevate || req.body.criticita_rilevate;
     const strumentiSuggeriti = req.body.strumenti_suggeriti || req.body.strumentiSuggeriti;
     const noteOperatore = req.body.note_operatore || req.body.noteOperatore || req.body.note;
+    const fabbisogno = req.body.fabbisogno !== undefined ? req.body.fabbisogno : null;
+    const categoriaBisogno = req.body.categoria_bisogno || req.body.categoriaBisogno || null;
 
     const utente = queryOne('SELECT tipo FROM utenti WHERE id = ?', [id]);
     if (!utente) return res.status(404).json({ error: 'Utente non trovato' });
@@ -2017,16 +2069,24 @@ app.all(['/api/crm/utenti/:id/post-colloquio', '/api/crm/utenti/:id/profilo'], (
             grado_innovazione = COALESCE(?, grado_innovazione),
             uso_ai = COALESCE(?, uso_ai),
             criticita_rilevate = COALESCE(?, criticita_rilevate),
-            strumenti_suggeriti = COALESCE(?, strumenti_suggeriti)
+            strumenti_suggeriti = COALESCE(?, strumenti_suggeriti),
+            fabbisogno = COALESCE(?, fabbisogno),
+            categoria_bisogno = COALESCE(?, categoria_bisogno)
         WHERE utente_id = ?
-      `, [atecoCodice || null, atecoArea || null, dimensione || null, faseVita || null, gradoInnovazione || null, usoAi || null, criticitaRilevate || null, strumentiSuggeriti || null, id]);
+      `, [atecoCodice || null, atecoArea || null, dimensione || null, faseVita || null, gradoInnovazione || null, usoAi || null, criticitaRilevate || null, strumentiSuggeriti || null, fabbisogno, categoriaBisogno, id]);
     } else if (utente.tipo === 'ASPIRANTE') {
+      const statoIdea = req.body.stato_idea || req.body.statoIdea || faseVita || null;
+      const condizioneAttuale = req.body.condizione_attuale || req.body.condizioneAttuale || null;
+
       run(`
         UPDATE profili_aspirante
         SET settore_interesse = COALESCE(?, settore_interesse),
-            fase_progetto = COALESCE(?, fase_progetto)
+            stato_idea = COALESCE(?, stato_idea),
+            condizione_attuale = COALESCE(?, condizione_attuale),
+            fabbisogno = COALESCE(?, fabbisogno),
+            categoria_bisogno = COALESCE(?, categoria_bisogno)
         WHERE utente_id = ?
-      `, [atecoArea || atecoCodice || null, faseVita || null, id]);
+      `, [atecoArea || atecoCodice || null, statoIdea, condizioneAttuale, fabbisogno, categoriaBisogno, id]);
     }
 
     if (noteOperatore) {
@@ -2144,7 +2204,18 @@ app.post('/api/crm/interazioni', (req, res) => {
     const dataProssimoRicontatto = req.body.dataProssimoRicontatto || req.body.data_prossimo_ricontatto || '';
     const note = req.body.note || '';
 
-    const nowStr = new Date().toISOString().replace('T', ' ').substring(0, 19);
+    // Gestione fuso orario italiano Europe/Rome:
+    // Se il client passa una data/ora esplicita la utilizziamo, altrimenti calcoliamo l'ora locale italiana
+    const reqDataOra = (req.body.dataOra || req.body.data_ora || '').trim();
+    let finalDataOra: string;
+    if (reqDataOra) {
+      finalDataOra = reqDataOra.replace('T', ' ');
+      if (finalDataOra.length === 16) {
+        finalDataOra += ':00';
+      }
+    } else {
+      finalDataOra = getRomeDateTimeStr();
+    }
 
     const ins = run(`
       INSERT INTO interazioni
@@ -2155,7 +2226,7 @@ app.post('/api/crm/interazioni', (req, res) => {
       appuntamentoId,
       sportelloId,
       operatoreNome,
-      nowStr,
+      finalDataOra,
       canale,
       tipologiaRichiesta,
       bandiTrattati,
@@ -2165,7 +2236,7 @@ app.post('/api/crm/interazioni', (req, res) => {
       note
     ]);
 
-    res.json({ success: true, id: ins.lastInsertRowid });
+    res.json({ success: true, id: ins.lastInsertRowid, data_ora: finalDataOra });
   } catch (err: any) {
     res.status(500).json({ error: err.message });
   }
