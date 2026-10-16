@@ -605,18 +605,7 @@ export const Scheda360Modal: React.FC<Scheda360ModalProps> = ({
               </span>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-              <div>
-                <label className="block font-semibold text-slate-700 mb-1">Codice ATECO Verificato</label>
-                <input
-                  type="text"
-                  value={atecoVerificato}
-                  onChange={(e) => setAtecoVerificato(e.target.value)}
-                  placeholder="es. 62.01.00"
-                  className="w-full px-3 py-1.5 border border-slate-300 rounded-lg bg-white"
-                />
-              </div>
-
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
               <div>
                 <label className="block font-semibold text-slate-700 mb-1">Area di Specializzazione RIS3</label>
                 <select
