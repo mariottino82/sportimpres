@@ -16,7 +16,10 @@ import {
   User,
   ArrowUpDown,
   Trash2,
-  Zap
+  Zap,
+  Copy,
+  Check,
+  ExternalLink
 } from 'lucide-react';
 import { NuovoAppuntamentoModal } from './NuovoAppuntamentoModal';
 
@@ -77,6 +80,22 @@ export const AgendaView: React.FC<AgendaViewProps> = ({ role, onOpenUser360 }) =
 
   // New appointment / real-time walk-in modal
   const [showNewApptModal, setShowNewApptModal] = useState(false);
+
+  // Videocall copy link feedback state
+  const [copiedApptId, setCopiedApptId] = useState<number | null>(null);
+  const handleCopyLink = (apptId: number, link: string) => {
+    if (!link) return;
+    if (navigator?.clipboard?.writeText) {
+      navigator.clipboard.writeText(link).then(() => {
+        setCopiedApptId(apptId);
+        setTimeout(() => setCopiedApptId(null), 2500);
+      }).catch(() => {
+        window.prompt('Copia il link della videocall:', link);
+      });
+    } else {
+      window.prompt('Copia il link della videocall:', link);
+    }
+  };
 
   const fetchAgenda = () => {
     setLoading(true);
@@ -386,6 +405,38 @@ export const AgendaView: React.FC<AgendaViewProps> = ({ role, onOpenUser360 }) =
                       </div>
                     </div>
 
+                    {/* Videocall quick launch if modalita === VIDEOCALL */}
+                    {(appt.modalita === 'VIDEOCALL' || Boolean(appt.videocall_link)) && (
+                      <div className="p-2.5 rounded-lg bg-purple-50 border border-purple-200 flex items-center justify-between gap-2">
+                        <div className="flex items-center gap-1.5 min-w-0">
+                          <Video className="w-4 h-4 text-purple-700 shrink-0" />
+                          <span className="text-[11px] font-bold text-purple-900 truncate">
+                            Videocall Online
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-1.5 shrink-0">
+                          <a
+                            href={appt.videocall_link || `https://meet.jit.si/SportelloImpreseMolise-${appt.codice}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="px-2.5 py-1 rounded-md bg-purple-700 hover:bg-purple-800 text-white font-bold text-[11px] flex items-center gap-1 shadow-2xs cursor-pointer"
+                            title="Entra nella stanza videocall"
+                          >
+                            <Video className="w-3 h-3" />
+                            <span>Entra</span>
+                          </a>
+                          <button
+                            type="button"
+                            onClick={() => handleCopyLink(appt.id, appt.videocall_link || `https://meet.jit.si/SportelloImpreseMolise-${appt.codice}`)}
+                            className="p-1 rounded-md bg-white border border-purple-200 text-purple-700 hover:bg-purple-100 cursor-pointer"
+                            title="Copia link stanza"
+                          >
+                            {copiedApptId === appt.id ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
+                          </button>
+                        </div>
+                      </div>
+                    )}
+
                     {/* Actions */}
                     <div className="flex items-center gap-2 pt-1">
                       <button
@@ -470,12 +521,37 @@ export const AgendaView: React.FC<AgendaViewProps> = ({ role, onOpenUser360 }) =
                           {appt.sportello_nome?.replace('Sportello Territoriale ', '')}
                         </td>
                         <td className="py-3.5 px-4">
-                          <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold ${
-                            appt.modalita === 'PRESENZA' ? 'bg-emerald-50 text-emerald-700' : 'bg-purple-50 text-purple-700'
-                          }`}>
-                            {appt.modalita === 'PRESENZA' ? <MapPin className="w-3 h-3" /> : <Video className="w-3 h-3" />}
-                            <span>{appt.modalita}</span>
-                          </span>
+                          <div className="space-y-1">
+                            <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                              appt.modalita === 'PRESENZA' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-purple-50 text-purple-700 border border-purple-200'
+                            }`}>
+                              {appt.modalita === 'PRESENZA' ? <MapPin className="w-3 h-3" /> : <Video className="w-3 h-3" />}
+                              <span>{appt.modalita}</span>
+                            </span>
+
+                            {(appt.modalita === 'VIDEOCALL' || Boolean(appt.videocall_link)) && (
+                              <div className="flex items-center gap-1">
+                                <a
+                                  href={appt.videocall_link || `https://meet.jit.si/SportelloImpreseMolise-${appt.codice}`}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-purple-700 hover:bg-purple-800 text-white font-bold text-[10px] shadow-2xs transition-colors cursor-pointer"
+                                  title="Apri stanza videocall come organizzatore"
+                                >
+                                  <Video className="w-2.5 h-2.5" />
+                                  <span>Avvia Call</span>
+                                </a>
+                                <button
+                                  type="button"
+                                  onClick={() => handleCopyLink(appt.id, appt.videocall_link || `https://meet.jit.si/SportelloImpreseMolise-${appt.codice}`)}
+                                  className="p-1 rounded bg-slate-100 hover:bg-purple-100 text-purple-700 transition-colors cursor-pointer"
+                                  title="Copia link stanza"
+                                >
+                                  {copiedApptId === appt.id ? <Check className="w-3 h-3 text-emerald-600" /> : <Copy className="w-3 h-3" />}
+                                </button>
+                              </div>
+                            )}
+                          </div>
                         </td>
                         <td className="py-3.5 px-4">
                           <span className={`px-2.5 py-1 rounded-full text-[10px] font-extrabold uppercase ${
@@ -542,6 +618,38 @@ export const AgendaView: React.FC<AgendaViewProps> = ({ role, onOpenUser360 }) =
             </div>
 
             <div className="p-6 space-y-4 text-xs">
+              {(selectedApptForStatus.modalita === 'VIDEOCALL' || Boolean(selectedApptForStatus.videocall_link)) && (
+                <div className="p-3 bg-purple-50 rounded-xl border border-purple-200 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="font-bold text-xs text-purple-950 flex items-center gap-1.5">
+                      <Video className="w-3.5 h-3.5 text-purple-700" />
+                      <span>Collegamento Videocall Online</span>
+                    </span>
+                    <a
+                      href={selectedApptForStatus.videocall_link || `https://meet.jit.si/SportelloImpreseMolise-${selectedApptForStatus.codice}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="px-2.5 py-1 rounded bg-purple-700 hover:bg-purple-800 text-white font-bold text-[10px] flex items-center gap-1 shadow-2xs cursor-pointer"
+                    >
+                      <Video className="w-3 h-3" />
+                      <span>Apri Stanza Video</span>
+                    </a>
+                  </div>
+                  <div className="flex items-center justify-between gap-2 bg-white p-2 rounded-lg border border-purple-100">
+                    <span className="font-mono text-[11px] text-purple-900 truncate">
+                      {selectedApptForStatus.videocall_link || `https://meet.jit.si/SportelloImpreseMolise-${selectedApptForStatus.codice}`}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => handleCopyLink(selectedApptForStatus.id, selectedApptForStatus.videocall_link || `https://meet.jit.si/SportelloImpreseMolise-${selectedApptForStatus.codice}`)}
+                      className="px-2 py-0.5 rounded bg-purple-100 hover:bg-purple-200 text-purple-800 text-[10px] font-bold shrink-0 cursor-pointer"
+                    >
+                      {copiedApptId === selectedApptForStatus.id ? 'Copiato!' : 'Copia'}
+                    </button>
+                  </div>
+                </div>
+              )}
+
               <div>
                 <label className="block font-semibold text-slate-700 mb-1">Nuovo Stato Incontro</label>
                 <select

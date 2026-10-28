@@ -277,9 +277,9 @@ export const EventiManager: React.FC<EventiManagerProps> = ({
     }
   };
 
-  const filtered = eventi.filter(
-    (e) => filterTipo === 'ALL' || e.tipo === filterTipo
-  );
+  const filtered = eventi
+    .filter((e) => filterTipo === 'ALL' || e.tipo === filterTipo)
+    .sort((a, b) => (b.id || 0) - (a.id || 0));
 
   return (
     <div className="space-y-6">

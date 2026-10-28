@@ -516,8 +516,8 @@ app.get('/api/eventi', (req, res) => {
     const includeInactive = req.query.all === 'true';
     const rows = queryAll(
       includeInactive
-        ? 'SELECT * FROM eventi ORDER BY data ASC'
-        : 'SELECT * FROM eventi WHERE attivo = 1 ORDER BY data ASC'
+        ? 'SELECT * FROM eventi ORDER BY id DESC'
+        : 'SELECT * FROM eventi WHERE attivo = 1 ORDER BY id DESC'
     );
     res.setHeader('Cache-Control', 'public, max-age=30, stale-while-revalidate=120');
     res.json(rows);
@@ -1038,7 +1038,8 @@ app.post('/api/prenotazioni', async (req, res) => {
     while (attempts < 5) {
       try {
         codice = generateUniqueBookingCode();
-        videocallLink = modalita === 'VIDEOCALL' ? `https://meet.jit.si/SportelloImpreseMolise-${codice}` : '';
+        const sportelloCustomLink = (targetSportello?.link_videocall || '').trim();
+        videocallLink = modalita === 'VIDEOCALL' ? (sportelloCustomLink || `https://meet.jit.si/SportelloImpreseMolise-${codice}`) : '';
 
         insAppt = run(`
           INSERT INTO appuntamenti
@@ -1574,6 +1575,8 @@ app.patch(['/api/crm/appuntamenti/:id/stato', '/api/crm/appuntamenti/:id'], (req
     const noteOperatore = req.body.noteOperatore || req.body.note_operatore || req.body.note;
     const followupDate = req.body.followupDate || req.body.followup_date;
     const followupEsito = req.body.followupEsito || req.body.followup_esito;
+    const videocallLink = req.body.videocall_link !== undefined ? req.body.videocall_link : (req.body.videocallLink !== undefined ? req.body.videocallLink : null);
+    const modalita = req.body.modalita !== undefined ? req.body.modalita : null;
 
     const validStates = ['RICHIESTO', 'CONFERMATO', 'SVOLTO', 'NOSHOW', 'FOLLOWUP', 'CHIUSO_POSITIVO', 'CHIUSO_NEGATIVO', 'ANNULLATO'];
     if (stato && !validStates.includes(stato)) {
@@ -1585,9 +1588,20 @@ app.patch(['/api/crm/appuntamenti/:id/stato', '/api/crm/appuntamenti/:id'], (req
       SET stato = COALESCE(?, stato),
           note_operatore = COALESCE(?, note_operatore),
           followup_date = COALESCE(?, followup_date),
-          followup_esito = COALESCE(?, followup_esito)
+          followup_esito = COALESCE(?, followup_esito),
+          videocall_link = CASE WHEN ? IS NOT NULL THEN ? ELSE videocall_link END,
+          modalita = COALESCE(?, modalita)
       WHERE id = ?
-    `, [stato || null, noteOperatore || null, followupDate || null, followupEsito || null, id]);
+    `, [
+      stato || null,
+      noteOperatore || null,
+      followupDate || null,
+      followupEsito || null,
+      videocallLink !== null ? videocallLink : null,
+      videocallLink !== null ? videocallLink : null,
+      modalita || null,
+      id
+    ]);
 
     // If marked as SVOLTO, optionally create an interaction record
     if (stato === 'SVOLTO') {
@@ -1608,7 +1622,8 @@ app.patch(['/api/crm/appuntamenti/:id/stato', '/api/crm/appuntamenti/:id'], (req
       }
     }
 
-    res.json({ success: true, id, stato });
+    const updatedRow = queryOne('SELECT * FROM appuntamenti WHERE id = ?', [id]);
+    res.json({ success: true, id, appuntamento: updatedRow });
   } catch (err: any) {
     res.status(500).json({ error: err.message });
   }

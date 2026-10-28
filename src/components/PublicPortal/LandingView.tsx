@@ -219,6 +219,7 @@ export const LandingView: React.FC<LandingViewProps> = ({
           locandina_tipo: d.locandina_tipo || (d.manifesto_url?.toLowerCase().endsWith('.pdf') ? 'pdf' : (d.manifesto_url ? 'image' : '')),
           locandina_nome: d.locandina_nome || '',
           attivo: d.attivo !== undefined ? d.attivo : 1,
+          creato_il: d.creato_il || '',
         }));
         setEventiList(mapped);
         setLoadingEventi(false);
@@ -238,7 +239,15 @@ export const LandingView: React.FC<LandingViewProps> = ({
   const prossimiEventi = useMemo(() => {
     return eventiList
       .filter((e) => e.attivo === undefined || e.attivo === 1)
-      .sort((a, b) => a.data.localeCompare(b.data));
+      .sort((a, b) => {
+        if (b.id && a.id && b.id !== a.id) {
+          return b.id - a.id;
+        }
+        if (b.creato_il && a.creato_il) {
+          return b.creato_il.localeCompare(a.creato_il);
+        }
+        return (b.id || 0) - (a.id || 0);
+      });
   }, [eventiList]);
 
   const filteredEventi = useMemo(() => {

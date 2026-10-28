@@ -426,12 +426,18 @@ export async function sendAppointmentConfirmationEmail(
                   <td><strong>${modalitaLabel}</strong></td>
                 </tr>
                 ${params.modalita === 'VIDEOCALL' && params.videocallLink ? `
-                <tr style="background-color:#f0fdf4;">
-                  <td style="font-weight:700; color:#166534;">Link Stanza Video:</td>
-                  <td>
-                    <a href="${params.videocallLink}" target="_blank" style="color:#0284c7; font-weight:700; text-decoration:underline; word-break:break-all;">
-                      ${params.videocallLink}
+                <tr style="background-color:#f5f3ff;">
+                  <td style="font-weight:700; color:#5b21b6; vertical-align:top; padding-top:12px;">Videocall Online:</td>
+                  <td style="padding:12px 8px;">
+                    <a href="${params.videocallLink}" target="_blank" style="display:inline-block; background-color:#7c3aed; color:#ffffff; font-weight:700; font-size:13px; text-decoration:none; padding:8px 16px; border-radius:8px; margin-bottom:8px;">
+                      📹 Accedi alla Stanza Videocall
                     </a>
+                    <div style="font-size:11.5px; color:#475569; word-break:break-all;">
+                      Link diretto: <a href="${params.videocallLink}" target="_blank" style="color:#7c3aed; font-weight:600; text-decoration:underline;">${params.videocallLink}</a>
+                    </div>
+                    <div style="font-size:11px; color:#6b21a8; background-color:#ede9fe; border-left:3px solid #7c3aed; padding:6px 10px; margin-top:8px; border-radius:4px; line-height:1.4;">
+                      ℹ️ <strong>Istruzioni di collegamento:</strong> Non è necessario installare alcun programma né registrarsi. Ti basterà aprire il link da computer o smartphone. Se visualizzi la scritta <em>"In attesa dell'organizzatore"</em>, attendi qualche istante: l'operatore aprirà la stanza all'orario fissato.
+                    </div>
                   </td>
                 </tr>
                 ` : ''}

@@ -14,6 +14,7 @@ export interface EventoItem {
   locandina_tipo?: 'image' | 'pdf' | '';
   locandina_nome?: string;
   attivo?: number;
+  creato_il?: string;
 }
 
 export const EVENTI_DEFAULT: EventoItem[] = [];
